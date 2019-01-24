@@ -1,0 +1,27 @@
+apply plugin: 'maven'
+apply plugin: 'maven-publish'
+
+def repoUser = project.findProperty('telcoTeamUsername')
+        ?: System.getenv('telcoTeamUsername')
+        ?: 'Not Specified'
+
+def repoPass = project.findProperty('telcoTeamPassword')
+        ?: System.getenv('telcoTeamPassword')
+        ?: 'Not Specified'
+
+publishing {
+    repositories {
+        maven {
+            url "http://nexus.telco.inomera.com/repository/maven-releases/"
+            credentials {
+                username repoUser
+                password repoPass
+            }
+        }
+    }
+}
+
+task sourceJar(type: Jar) {
+    classifier 'sources'
+    from sourceSets.main.allJava
+}

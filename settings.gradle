@@ -1,0 +1,12 @@
+rootProject.name = 'telco-commons-kafka'
+
+include 'example'
+project(':example').name = 'examples'
+
+include 'example:spring-kafka'
+project(':example:spring-kafka').name = 'example-spring-kafka'
+
+include 'kafka'
+project(':kafka').name = 'kafka'
+
+include 'kafka:spring-kafka'

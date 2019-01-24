@@ -1,0 +1,45 @@
+plugins {
+    id 'org.springframework.boot' version '2.1.4.RELEASE'
+    id 'java'
+}
+
+apply plugin: 'io.spring.dependency-management'
+apply plugin: 'org.springframework.boot'
+
+ext {
+    set('springCloudVersion', 'Greenwich.SR1')
+}
+
+repositories {
+    mavenCentral()
+}
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_1_8
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-web")
+
+    compile project(":kafka:spring-kafka")
+
+    compileOnly("org.projectlombok:lombok")
+    annotationProcessor("org.projectlombok:lombok")
+
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.2.0")
+    testCompile("org.junit.jupiter:junit-jupiter-params:5.2.0")
+    testRuntime("org.junit.jupiter:junit-jupiter-engine:5.2.0")
+    testRuntime "org.slf4j:slf4j-log4j12:1.7.10"
+    testRuntime "log4j:log4j:1.2.17"
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}
