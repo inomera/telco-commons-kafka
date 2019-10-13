@@ -10,3 +10,7 @@ include 'kafka'
 project(':kafka').name = 'kafka'
 
 include 'kafka:spring-kafka'
+project(':kafka:spring-kafka').name ='spring-kafka'
+
+include 'kafka:kryo'
+project(':kafka:kryo').name ='kafka-kryo'
