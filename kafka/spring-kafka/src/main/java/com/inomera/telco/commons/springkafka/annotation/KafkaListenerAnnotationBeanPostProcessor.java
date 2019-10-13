@@ -3,6 +3,7 @@ package com.inomera.telco.commons.springkafka.annotation;
 import com.inomera.telco.commons.springkafka.consumer.ListenerEndpointDescriptor;
 import com.inomera.telco.commons.springkafka.consumer.ListenerMethod;
 import com.inomera.telco.commons.springkafka.consumer.ListenerMethodRegistry;
+import com.inomera.telco.commons.springkafka.consumer.SuperClassListenerEndpointDescriptor;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -90,11 +91,20 @@ public class KafkaListenerAnnotationBeanPostProcessor implements BeanPostProcess
         }
 
         for (String topic : annotation.topics()) {
-            final ListenerEndpointDescriptor listenerEndpointDescriptor = new ListenerEndpointDescriptor(topic,
-                    annotation.groupId(), parameterTypes[0]);
             final ListenerMethod listenerMethod = new ListenerMethod(bean, method);
-            this.listenerMethodRegistry.addListenerMethod(listenerEndpointDescriptor, listenerMethod);
-            LOG.info("Listener method {} is registered for {}", listenerMethod, listenerEndpointDescriptor);
+
+            if (annotation.includeSubclasses()) {
+                final SuperClassListenerEndpointDescriptor superClassListenerEndpointDescriptor =
+                        new SuperClassListenerEndpointDescriptor(topic, annotation.groupId(), parameterTypes[0]);
+                this.listenerMethodRegistry.addListenerMethod(superClassListenerEndpointDescriptor, listenerMethod);
+                LOG.info("Super Class Listener method {} is registered for {}", listenerMethod,
+                        superClassListenerEndpointDescriptor);
+            } else {
+                final ListenerEndpointDescriptor listenerEndpointDescriptor = new ListenerEndpointDescriptor(topic,
+                        annotation.groupId(), parameterTypes[0]);
+                this.listenerMethodRegistry.addListenerMethod(listenerEndpointDescriptor, listenerMethod);
+                LOG.info("Listener method {} is registered for {}", listenerMethod, listenerEndpointDescriptor);
+            }
         }
     }
 

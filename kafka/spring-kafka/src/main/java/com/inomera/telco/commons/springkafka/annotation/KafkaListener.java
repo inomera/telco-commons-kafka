@@ -11,4 +11,6 @@ public @interface KafkaListener {
     String[] topics() default "";
 
     String groupId() default "";
+
+    boolean includeSubclasses() default false;
 }

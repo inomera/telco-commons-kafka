@@ -1,6 +1,5 @@
 package com.inomera.telco.commons.springkafka.consumer;
 
-import lombok.Getter;
 import lombok.ToString;
 
 import java.util.Objects;
@@ -8,14 +7,13 @@ import java.util.Objects;
 /**
  * @author Serdar Kuzucu
  */
-@Getter
 @ToString
-public class ListenerEndpointDescriptor {
+public class SuperClassListenerEndpointDescriptor {
     private final String topic;
     private final String groupId;
     private final Class<?> messageType;
 
-    public ListenerEndpointDescriptor(String topic, String groupId, Class<?> messageType) {
+    public SuperClassListenerEndpointDescriptor(String topic, String groupId, Class<?> messageType) {
         this.topic = topic;
         this.groupId = groupId;
         this.messageType = messageType;
@@ -29,7 +27,7 @@ public class ListenerEndpointDescriptor {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        final ListenerEndpointDescriptor that = (ListenerEndpointDescriptor) o;
+        final SuperClassListenerEndpointDescriptor that = (SuperClassListenerEndpointDescriptor) o;
         return Objects.equals(topic, that.topic) &&
                 Objects.equals(groupId, that.groupId) &&
                 Objects.equals(messageType, that.messageType);
@@ -38,5 +36,15 @@ public class ListenerEndpointDescriptor {
     @Override
     public int hashCode() {
         return Objects.hash(topic, groupId, messageType);
+    }
+
+    boolean matches(ListenerEndpointDescriptor descriptor) {
+        return Objects.equals(descriptor.getTopic(), topic) &&
+                Objects.equals(descriptor.getGroupId(), groupId) &&
+                isAssignableFrom(descriptor.getMessageType());
+    }
+
+    private boolean isAssignableFrom(Class<?> messageType) {
+        return this.messageType.isAssignableFrom(messageType);
     }
 }
