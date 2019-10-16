@@ -3,6 +3,7 @@ package com.inomera.telco.commons.springkafka.consumer;
 import com.inomera.telco.commons.lang.PropertyUtils;
 import com.inomera.telco.commons.lang.thread.FutureUtils;
 import com.inomera.telco.commons.lang.thread.ThreadUtils;
+import com.inomera.telco.commons.springkafka.PartitionKeyAware;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
@@ -257,8 +258,27 @@ public class KafkaMessageConsumer implements SmartLifecycle {
         }
 
         private Future<ConsumerRecord<String, ?>> sendToInvoker(final ConsumerRecord<String, ?> rec) {
-            int workerIndex = (Math.abs(rec.topic().hashCode()) + rec.partition()) % invokers.length;
-            return invokers[workerIndex].addRecord(rec);
+            return chooseListenerInvoker(rec).addRecord(rec);
+        }
+
+        private ListenerInvoker chooseListenerInvoker(ConsumerRecord<String, ?> record) {
+            final int partitionKey = getPartitionKey(record);
+            final int workerIndex = Math.abs(partitionKey) % invokers.length;
+            return invokers[workerIndex];
+        }
+
+        private int getPartitionKey(ConsumerRecord<String, ?> record) {
+            final Object message = record.value();
+
+            if (message instanceof PartitionKeyAware) {
+                return ((PartitionKeyAware) message).getPartitionKey().hashCode();
+            }
+
+            if (record.key() != null) {
+                return record.key().hashCode();
+            }
+
+            return message.hashCode();
         }
 
         private boolean commitLastOffsets() {

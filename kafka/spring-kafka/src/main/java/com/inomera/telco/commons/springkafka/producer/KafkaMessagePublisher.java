@@ -1,5 +1,6 @@
 package com.inomera.telco.commons.springkafka.producer;
 
+import com.inomera.telco.commons.springkafka.PartitionKeyAware;
 import org.apache.kafka.clients.producer.*;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
