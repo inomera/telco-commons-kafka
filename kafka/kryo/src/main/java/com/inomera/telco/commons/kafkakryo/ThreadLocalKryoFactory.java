@@ -19,7 +19,7 @@ public class ThreadLocalKryoFactory implements KryoFactory {
             return cachedKryo;
         }
 
-        final Kryo newKryo = new Kryo();
+        final Kryo newKryo = new Kryo(null);
         kryoClassRegistry.registerClasses(newKryo);
         KRYO_HOLDER.set(newKryo);
 
