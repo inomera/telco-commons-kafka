@@ -24,7 +24,7 @@ public class ListenerMethod {
         try {
             listenerMethod.invoke(listenerInstance, message);
         } catch (Exception e) {
-            LOG.error("Error invoking listener method {} with message {}", this, message);
+            LOG.error("Error invoking listener method {} with message {}", this, message, e);
         }
     }
 
