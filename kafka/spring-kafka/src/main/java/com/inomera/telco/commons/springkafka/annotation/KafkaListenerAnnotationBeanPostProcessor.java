@@ -1,9 +1,9 @@
 package com.inomera.telco.commons.springkafka.annotation;
 
-import com.inomera.telco.commons.springkafka.consumer.ListenerEndpointDescriptor;
-import com.inomera.telco.commons.springkafka.consumer.ListenerMethod;
-import com.inomera.telco.commons.springkafka.consumer.ListenerMethodRegistry;
-import com.inomera.telco.commons.springkafka.consumer.SuperClassListenerEndpointDescriptor;
+import com.inomera.telco.commons.springkafka.consumer.invoker.ListenerEndpointDescriptor;
+import com.inomera.telco.commons.springkafka.consumer.invoker.ListenerMethod;
+import com.inomera.telco.commons.springkafka.consumer.invoker.ListenerMethodRegistry;
+import com.inomera.telco.commons.springkafka.consumer.invoker.SuperClassListenerEndpointDescriptor;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;

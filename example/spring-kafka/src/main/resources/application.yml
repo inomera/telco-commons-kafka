@@ -1,3 +1,6 @@
+
 logging:
   pattern:
-    console: '%clr(%d{yy-MM-dd E HH:mm:ss.SSS}){blue} %clr(%-5p) %clr([%4.50t]){cyan} %clr(%logger{0}){blue} %clr(:){red} %clr(%m){faint}%n'
+    console: '%clr(%d{HH:mm:ss.SSS}){blue} %clr(%-5p) %clr([%15t]){cyan} %clr(:){red} %clr(%m){faint}%n'
+server:
+  port: 8080

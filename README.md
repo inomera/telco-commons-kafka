@@ -1,3 +1,5 @@
+# About This Repo
+
 To publish a version to maven repository, 
 you should edit your local gradle.properties file.
 
@@ -33,3 +35,229 @@ build.gradle > publishing > publications > mavenJava > version
 ```
 
 Please change the version wisely.
+
+# How to Use Kafka
+
+Autowire `KafkaConsumerBuilder` wherever you want to build a new kafka consumer.
+
+## Ordered Consumer
+
+Threads share messages by their partition key.
+
+```java
+@Bean
+public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder) throws IOException {
+    final Properties properties = new Properties();
+    properties.load(new StringReader("enable.auto.commit=false\n" +
+            "auto.commit.interval.ms=2147483647\n" +
+            "bootstrap.servers=localhost:9092\n" +
+            "heartbeat.interval.ms=10000\n" +
+            "request.timeout.ms=31000\n" +
+            "session.timeout.ms=30000\n" +
+            "max.partition.fetch.bytes=15728640\n" +
+            "max.poll.records=10\n" +
+            "auto.offset.reset=earliest\n" +
+            "metadata.max.age.ms=10000"));
+
+    return builder.properties(properties)
+            .groupId("notification_mo")
+            .topicPattern(Pattern.compile("simpl\\.event\\..*"))
+            .offsetCommitStrategy(OffsetCommitStrategy.AT_MOST_ONCE_SINGLE)
+            .valueDeserializer(kafkaDeserializer())
+            .autoPartitionPause(true)
+            .invoker()
+            .interceptor(myInterceptor())
+            .ordered()
+            .numberOfThreads(3)
+            .and()
+            .and()
+            .build();
+}
+```
+
+## Unordered Consumers
+
+### Single Thread Pool
+
+Order is not guaranteed. 
+Single thread pool consumes all messages coming from all topics listened by the consumer.
+
+```java
+@Bean
+public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder) throws IOException {
+    final Properties properties = new Properties();
+    properties.load(new StringReader("enable.auto.commit=false\n" +
+            "auto.commit.interval.ms=2147483647\n" +
+            "bootstrap.servers=localhost:9092\n" +
+            "heartbeat.interval.ms=10000\n" +
+            "request.timeout.ms=31000\n" +
+            "session.timeout.ms=30000\n" +
+            "max.partition.fetch.bytes=15728640\n" +
+            "max.poll.records=10\n" +
+            "auto.offset.reset=earliest\n" +
+            "metadata.max.age.ms=10000"));
+
+    return builder.properties(properties)
+            .groupId("notification_mo")
+            .topicPattern(Pattern.compile("simpl\\.event\\..*"))
+            .offsetCommitStrategy(OffsetCommitStrategy.AT_MOST_ONCE_SINGLE)
+            .valueDeserializer(kafkaDeserializer())
+            .autoPartitionPause(false)
+            .invoker()
+            .interceptor(myInterceptor())
+            .unordered()
+            .singleExecutor()
+            .coreThreadCount(1)
+            .maxThreadCount(10)
+            .keepAliveTime(1)
+            .keepAliveTimeUnit(TimeUnit.MINUTES)
+            .queueCapacity(0)
+            .and()
+            .and()
+            .and()
+            .build();
+}
+```
+
+### Thread Pool Executor Per Topic
+
+Creates a new ThreadPoolExecutor per topic.
+Uses the same configuration (thread counts, keep alive times) for all executors.
+
+```java
+@Bean
+public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder) throws IOException {
+    final Properties properties = new Properties();
+    properties.load(new StringReader("enable.auto.commit=false\n" +
+            "auto.commit.interval.ms=2147483647\n" +
+            "bootstrap.servers=localhost:9092\n" +
+            "heartbeat.interval.ms=10000\n" +
+            "request.timeout.ms=31000\n" +
+            "session.timeout.ms=30000\n" +
+            "max.partition.fetch.bytes=15728640\n" +
+            "max.poll.records=10\n" +
+            "auto.offset.reset=earliest\n" +
+            "metadata.max.age.ms=10000"));
+
+    return builder.properties(properties)
+            .groupId("notification_mo")
+            .topicPattern(Pattern.compile("simpl\\.event\\..*"))
+            .offsetCommitStrategy(OffsetCommitStrategy.AT_MOST_ONCE_SINGLE)
+            .valueDeserializer(kafkaDeserializer())
+            .autoPartitionPause(false)
+            .invoker()
+            .interceptor(myInterceptor())
+            .unordered()
+            .executorPerTopic()
+            .coreThreadCount(1)
+            .maxThreadCount(10)
+            .keepAliveTime(1)
+            .keepAliveTimeUnit(TimeUnit.MINUTES)
+            .queueCapacity(0)
+            .and()
+            .and()
+            .and()
+            .build();
+}
+```
+
+### Dynamic Executor Mapping
+
+Allows user to configure different thread pool executors per message.
+
+```java
+private Function<ConsumerRecord<String, ?>, String> topicNameToPartnerKeyFunction() {
+    return record -> {
+        // Topic names: simpl.notif.PTRINOMERA, simpl.notif.PTRCETECH
+        // Executor name is partner key
+        final String topicName = record.topic();
+        return StringUtils.substringAfterLast(topicName, ".");
+    };
+}
+
+@Bean
+public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder) throws IOException {
+    final Properties properties = new Properties();
+    properties.load(new StringReader("enable.auto.commit=false\n" +
+            "auto.commit.interval.ms=2147483647\n" +
+            "bootstrap.servers=localhost:9092\n" +
+            "heartbeat.interval.ms=10000\n" +
+            "request.timeout.ms=31000\n" +
+            "session.timeout.ms=30000\n" +
+            "max.partition.fetch.bytes=15728640\n" +
+            "max.poll.records=10\n" +
+            "auto.offset.reset=earliest\n" +
+            "metadata.max.age.ms=10000"));
+
+    return builder.properties(properties)
+            .groupId("notification_consumer")
+            .topicPattern(Pattern.compile("simpl\\.notif\\..*"))
+            .offsetCommitStrategy(OffsetCommitStrategy.AT_MOST_ONCE_SINGLE)
+            .valueDeserializer(kafkaDeserializer())
+            .invoker()
+            .unordered()
+            .dynamicNamedExecutors()
+            .executorNamingFunction(topicNameToPartnerKeyFunction())
+            .configureDefaultExecutor(1, 1, 1, TimeUnit.MINUTES)
+            .configureExecutor("PTRINOMERA", 2, 2, 1, TimeUnit.MINUTES)
+            .configureExecutor("PTRCETECH", 1, 1, 1, TimeUnit.MINUTES)
+            .queueCapacity(0)
+            .and()
+            .and()
+            .interceptor(myInterceptor())
+            .and()
+            .autoPartitionPause(false)
+            .build();
+}
+```
+
+
+### Custom Executor Mapping
+
+Allows user to configure different thread pool executors per message.
+
+```java
+private Function<ConsumerRecord<String, ?>, String> topicNameToPartnerKeyFunction() {
+    return record -> {
+        // Topic names: simpl.notif.PTRINOMERA, simpl.notif.PTRCETECH
+        // Executor name is partner key
+        final String topicName = record.topic();
+        return StringUtils.substringAfterLast(topicName, ".");
+    };
+}
+
+@Bean
+public DynamicNamedExecutorStrategy notificationConsumerExecutorStrategy() {
+    return new DynamicNamedExecutorStrategy(new ThreadPoolExecutorSpec(1, 5, 1, TimeUnit.MINUTES, new IncrementalNamingThreadFactory("def-exec-"),
+            SynchronousQueue::new), topicNameToPartnerKeyFunction());
+}
+
+@Bean
+public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder) throws IOException {
+    final Properties properties = new Properties();
+    properties.load(new StringReader("enable.auto.commit=false\n" +
+            "auto.commit.interval.ms=2147483647\n" +
+            "bootstrap.servers=localhost:9092\n" +
+            "heartbeat.interval.ms=10000\n" +
+            "request.timeout.ms=31000\n" +
+            "session.timeout.ms=30000\n" +
+            "max.partition.fetch.bytes=15728640\n" +
+            "max.poll.records=10\n" +
+            "auto.offset.reset=earliest\n" +
+            "metadata.max.age.ms=10000"));
+
+    return builder.properties(properties)
+            .groupId("notification_mo")
+            .topicPattern(Pattern.compile("simpl\\.event\\..*"))
+            .offsetCommitStrategy(OffsetCommitStrategy.AT_MOST_ONCE_SINGLE)
+            .valueDeserializer(kafkaDeserializer())
+            .invoker()
+            .unordered()
+            .custom(notificationConsumerExecutorStrategy())
+            .interceptor(myInterceptor())
+            .and()
+            .autoPartitionPause(false)
+            .build();
+}
+```
+

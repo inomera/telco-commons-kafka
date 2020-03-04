@@ -1,4 +1,4 @@
-package com.inomera.telco.commons.springkafka.consumer;
+package com.inomera.telco.commons.springkafka.consumer.invoker;
 
 /**
  * @author Serdar Kuzucu
