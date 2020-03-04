@@ -6,7 +6,7 @@ import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedBeauti
 import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedMessage;
 import com.inomera.telco.commons.kafkakryo.*;
 import com.inomera.telco.commons.springkafka.annotation.EnableKafkaListeners;
-import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerBuilder;
+import com.inomera.telco.commons.springkafka.builder.KafkaConsumerBuilder;
 import com.inomera.telco.commons.springkafka.consumer.KafkaMessageConsumer;
 import com.inomera.telco.commons.springkafka.consumer.OffsetCommitStrategy;
 import com.inomera.telco.commons.springkafka.producer.KafkaMessagePublisher;
@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.io.StringReader;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author Serdar Kuzucu
@@ -65,37 +66,24 @@ public class SpringKafkaExampleApplication {
                 "request.timeout.ms=31000\n" +
                 "session.timeout.ms=30000\n" +
                 "max.partition.fetch.bytes=15728640\n" +
-                "max.poll.records=100\n" +
+                "max.poll.records=10\n" +
+                "auto.offset.reset=earliest\n" +
                 "metadata.max.age.ms=10000"));
 
         return builder.properties(properties)
-                .groupId("event-saver")
-                .topics("mouse-event.click")
+                .groupId("event-logger")
+                .topics("mouse-event.click", "mouse-event.dblclick")
                 .offsetCommitStrategy(OffsetCommitStrategy.AT_MOST_ONCE_SINGLE)
                 .valueDeserializer(kafkaDeserializer())
-                .numberOfThreads(5)
-                .build();
-    }
-
-    @Bean
-    public KafkaMessageConsumer consumer2(KafkaConsumerBuilder builder) throws IOException {
-        final Properties properties = new Properties();
-        properties.load(new StringReader("enable.auto.commit=false\n" +
-                "auto.commit.interval.ms=2147483647\n" +
-                "bootstrap.servers=localhost:9092\n" +
-                "heartbeat.interval.ms=10000\n" +
-                "request.timeout.ms=31000\n" +
-                "session.timeout.ms=30000\n" +
-                "max.partition.fetch.bytes=15728640\n" +
-                "max.poll.records=100\n" +
-                "metadata.max.age.ms=10000"));
-
-        return builder.properties(properties)
-                .groupId("event-handler")
-                .topics("mouse-event.click")
-                .offsetCommitStrategy(OffsetCommitStrategy.AT_MOST_ONCE_SINGLE)
-                .valueDeserializer(kafkaDeserializer())
-                .numberOfThreads(5)
+                .autoPartitionPause(true)
+                .invoker()
+                .unordered()
+                .dynamicNamedExecutors()
+                .configureExecutor("mouse-event.click", 3, 5, 1, TimeUnit.MINUTES)
+                .configureExecutor("mouse-event.dblclick", 3, 5, 1, TimeUnit.MINUTES)
+                .and()
+                .and()
+                .and()
                 .build();
     }
 

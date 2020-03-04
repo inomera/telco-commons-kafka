@@ -1,32 +1,40 @@
-package com.inomera.telco.commons.springkafka.consumer;
+package com.inomera.telco.commons.springkafka.builder;
 
 import com.inomera.telco.commons.lang.Assert;
 import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
+import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerProperties;
+import com.inomera.telco.commons.springkafka.consumer.KafkaMessageConsumer;
+import com.inomera.telco.commons.springkafka.consumer.OffsetCommitStrategy;
+import com.inomera.telco.commons.springkafka.consumer.SmartKafkaMessageConsumer;
+import com.inomera.telco.commons.springkafka.consumer.invoker.ConsumerInvoker;
+import com.inomera.telco.commons.springkafka.consumer.invoker.ListenerMethodRegistry;
+import com.inomera.telco.commons.springkafka.consumer.poller.ConsumerPoller;
+import com.inomera.telco.commons.springkafka.consumer.poller.DefaultConsumerPoller;
 import org.apache.kafka.common.serialization.Deserializer;
 
 import java.util.*;
 import java.util.concurrent.ThreadFactory;
 import java.util.regex.Pattern;
 
+import static com.inomera.telco.commons.springkafka.SpringKafkaConstants.CONSUMER_POLLER_THREAD_NAME_FORMAT;
+
 /**
  * @author Serdar Kuzucu
  */
 public class KafkaConsumerBuilder {
-    private ListenerMethodRegistry listenerMethodRegistry;
     private String groupId;
     private List<String> topics = new ArrayList<>();
     private Pattern topicPattern;
     private OffsetCommitStrategy offsetCommitStrategy;
     private Properties properties = new Properties();
-    private int numberOfThreads = 1;
     private Deserializer<?> valueDeserializer;
     private ThreadFactory consumerThreadFactory;
-    private ThreadFactory invokerThreadFactory;
-    private List<ListenerInvocationInterceptor> interceptors = new ArrayList<>();
+    private boolean autoPartitionPause = true;
+    private final ConsumerInvokerBuilder consumerInvokerBuilder;
 
     private KafkaConsumerBuilder(ListenerMethodRegistry listenerMethodRegistry) {
         Assert.notNull(listenerMethodRegistry, "listenerMethodRegistry is null");
-        this.listenerMethodRegistry = listenerMethodRegistry;
+        this.consumerInvokerBuilder = new ConsumerInvokerBuilder(this, listenerMethodRegistry);
     }
 
     public static KafkaConsumerBuilder builder(ListenerMethodRegistry listenerMethodRegistry) {
@@ -37,18 +45,6 @@ public class KafkaConsumerBuilder {
     public KafkaConsumerBuilder groupId(String groupId) {
         Assert.hasText(groupId, "groupId is null or empty");
         this.groupId = groupId;
-        return this;
-    }
-
-    public KafkaConsumerBuilder interceptor(ListenerInvocationInterceptor interceptor) {
-        Assert.notNull(interceptor, "interceptor is null");
-        this.interceptors.add(interceptor);
-        return this;
-    }
-
-    public KafkaConsumerBuilder interceptors(Collection<ListenerInvocationInterceptor> interceptors) {
-        Assert.notNull(interceptors, "interceptors is null");
-        this.interceptors.addAll(interceptors);
         return this;
     }
 
@@ -79,12 +75,6 @@ public class KafkaConsumerBuilder {
         return this;
     }
 
-    public KafkaConsumerBuilder numberOfThreads(int numberOfThreads) {
-        Assert.isTrue(numberOfThreads > 0, "numberOfThreads is smaller than 1");
-        this.numberOfThreads = numberOfThreads;
-        return this;
-    }
-
     public KafkaConsumerBuilder properties(Properties properties) {
         Assert.notNull(properties, "properties is null");
         this.properties = properties;
@@ -110,9 +100,12 @@ public class KafkaConsumerBuilder {
         return this;
     }
 
-    public KafkaConsumerBuilder invokerThreadFactory(ThreadFactory invokerThreadFactory) {
-        Assert.notNull(invokerThreadFactory, "invokerThreadFactory cannot be null");
-        this.invokerThreadFactory = invokerThreadFactory;
+    public ConsumerInvokerBuilder invoker() {
+        return consumerInvokerBuilder;
+    }
+
+    public KafkaConsumerBuilder autoPartitionPause(boolean autoPartitionPause) {
+        this.autoPartitionPause = autoPartitionPause;
         return this;
     }
 
@@ -121,15 +114,7 @@ public class KafkaConsumerBuilder {
             return this.consumerThreadFactory;
         }
 
-        return new IncrementalNamingThreadFactory("consumer-" + groupId + "-");
-    }
-
-    private ThreadFactory getOrCreateInvokerThreadFactory() {
-        if (this.invokerThreadFactory != null) {
-            return this.invokerThreadFactory;
-        }
-
-        return new IncrementalNamingThreadFactory("consumer-invoker-" + groupId + "-");
+        return new IncrementalNamingThreadFactory(String.format(CONSUMER_POLLER_THREAD_NAME_FORMAT, groupId));
     }
 
     public KafkaMessageConsumer build() {
@@ -137,13 +122,14 @@ public class KafkaConsumerBuilder {
         Assert.notNull(offsetCommitStrategy, "offsetCommitStrategy is null");
         Assert.notNull(properties, "properties is null");
         Assert.notNull(valueDeserializer, "valueDeserializer is null");
-        Assert.isTrue(numberOfThreads > 0, "numberOfThreads is smaller than 1");
 
         final KafkaConsumerProperties properties = new KafkaConsumerProperties(groupId, topics, topicPattern,
                 offsetCommitStrategy, this.properties);
 
-        return new KafkaMessageConsumer(properties, listenerMethodRegistry, interceptors,
-                getOrCreateConsumerThreadFactory(), getOrCreateInvokerThreadFactory(), valueDeserializer,
-                numberOfThreads);
+        final ConsumerPoller consumerPoller = new DefaultConsumerPoller(properties, getOrCreateConsumerThreadFactory(),
+                valueDeserializer, autoPartitionPause);
+
+        final ConsumerInvoker invoker = consumerInvokerBuilder.build(consumerPoller, groupId);
+        return new SmartKafkaMessageConsumer(consumerPoller, invoker);
     }
 }

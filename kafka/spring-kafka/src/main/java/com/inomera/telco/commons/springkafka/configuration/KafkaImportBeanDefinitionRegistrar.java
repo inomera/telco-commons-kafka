@@ -1,7 +1,7 @@
 package com.inomera.telco.commons.springkafka.configuration;
 
 import com.inomera.telco.commons.springkafka.annotation.KafkaListenerAnnotationBeanPostProcessor;
-import com.inomera.telco.commons.springkafka.consumer.ListenerMethodRegistry;
+import com.inomera.telco.commons.springkafka.consumer.invoker.ListenerMethodRegistry;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
