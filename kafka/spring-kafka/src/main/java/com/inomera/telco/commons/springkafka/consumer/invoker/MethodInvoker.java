@@ -4,7 +4,6 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.FutureTask;
 
@@ -28,12 +27,8 @@ public class MethodInvoker {
         return new FutureTask<>(() -> {
             try {
                 final Object msg = record.value();
-                final ListenerEndpointDescriptor listenerEndpointDescriptor = new ListenerEndpointDescriptor(
-                        record.topic(), groupId, msg.getClass());
-                final Collection<ListenerMethod> listenerMethods = listenerMethodRegistry.getListenerMethods(
-                        listenerEndpointDescriptor);
-
-                listenerMethods.forEach(listenerMethod -> invokeListenerMethod(listenerMethod, msg));
+                listenerMethodRegistry.getListenerMethods(groupId, record.topic(), msg.getClass())
+                        .forEach(listenerMethod -> invokeListenerMethod(listenerMethod, msg));
             } catch (Exception e) {
                 LOGGER.error("Error processing kafka message [{}].", record.value(), e);
             }

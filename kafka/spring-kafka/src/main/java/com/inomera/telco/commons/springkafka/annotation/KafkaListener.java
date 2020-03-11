@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface KafkaListener {
-    String[] topics() default "";
+    String[] topics() default {};
 
     String groupId() default "";
 
