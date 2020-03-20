@@ -48,7 +48,9 @@ public class PartitionKeyAwareExecutorStrategy implements ExecutorStrategy {
     }
 
     private ThreadPoolExecutor createExecutor() {
-        return new ThreadPoolExecutor(0, 1, 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(), invokerThreadFactory);
+        final ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(0, 1, 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(), invokerThreadFactory);
+        threadPoolExecutor.prestartAllCoreThreads();
+        return threadPoolExecutor;
     }
 
     private int getPartitionKey(ConsumerRecord<String, ?> record) {

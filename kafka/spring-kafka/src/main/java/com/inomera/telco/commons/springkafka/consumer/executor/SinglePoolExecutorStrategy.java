@@ -55,6 +55,7 @@ public class SinglePoolExecutorStrategy implements ExecutorStrategy {
         this.maxThreadCount = maxThreadCount;
         threadPoolExecutor.setCorePoolSize(coreThreadCount);
         threadPoolExecutor.setMaximumPoolSize(maxThreadCount);
+        threadPoolExecutor.prestartAllCoreThreads();
     }
 
     public void reconfigure(int coreThreadCount, int maxThreadCount, int keepAliveTime, TimeUnit keepAliveTimeUnit) {
@@ -62,10 +63,13 @@ public class SinglePoolExecutorStrategy implements ExecutorStrategy {
         this.keepAliveTime = keepAliveTime;
         this.keepAliveTimeUnit = keepAliveTimeUnit;
         threadPoolExecutor.setKeepAliveTime(keepAliveTime, keepAliveTimeUnit);
+        threadPoolExecutor.prestartAllCoreThreads();
     }
 
     private ThreadPoolExecutor createExecutor() {
-        return new ThreadPoolExecutor(coreThreadCount, maxThreadCount, keepAliveTime,
+        final ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(coreThreadCount, maxThreadCount, keepAliveTime,
                 keepAliveTimeUnit, queueSupplier.get(), threadFactory);
+        threadPoolExecutor.prestartAllCoreThreads();
+        return threadPoolExecutor;
     }
 }

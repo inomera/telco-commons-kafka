@@ -6,10 +6,13 @@ import com.inomera.telco.commons.springkafka.producer.KafkaMessagePublisher;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import java.io.Serializable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -21,18 +24,23 @@ public class SomeSender {
     private static final Logger LOG = LoggerFactory.getLogger(SomeSender.class);
 
     private final KafkaMessagePublisher<Serializable> kafkaMessagePublisher;
-    private final AtomicInteger atomicInteger = new AtomicInteger(1);
+    private final CountDownLatch countDownLatch;
 
-    @Scheduled(fixedDelay = 1000)
+    @PostConstruct
     public void publishRandomText() {
-        LOG.debug("Sending event");
-        for (int i = 0; i < 20; i++) {
-            if (atomicInteger.incrementAndGet() % 2 == 0) {
+        new Thread(() -> {
+            LOG.debug("Sending event");
+            for (int i = 0; i < 10_000; i++) {
                 kafkaMessagePublisher.send("mouse-event.click", new SomethingHappenedMessage());
-            } else {
                 kafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedBeautifullyMessage());
             }
-        }
-        LOG.debug("Sent event");
+            try {
+                countDownLatch.await();
+                LOG.info("Finito");
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            LOG.debug("Sent event");
+        }).start();
     }
 }

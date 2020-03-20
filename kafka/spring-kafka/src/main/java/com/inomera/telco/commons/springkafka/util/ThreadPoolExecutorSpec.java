@@ -25,8 +25,10 @@ public class ThreadPoolExecutorSpec {
     private final Supplier<BlockingQueue<Runnable>> blockingQueueSupplier;
 
     public ThreadPoolExecutor createThreadPool() {
-        return new ThreadPoolExecutor(coreThreadCount, maxThreadCount, keepAliveTime, keepAliveTimeUnit,
+        final ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(coreThreadCount, maxThreadCount, keepAliveTime, keepAliveTimeUnit,
                 createQueue(), threadFactory);
+        threadPoolExecutor.prestartAllCoreThreads();
+        return threadPoolExecutor;
     }
 
     private BlockingQueue<Runnable> createQueue() {

@@ -69,53 +69,37 @@ public class PauseAndRetryRejectionHandler implements RejectionHandler {
     private class RetryTask implements Runnable {
         private final FutureTask<ConsumerRecord<String, ?>> futureTask;
         private final ConsumerRecord<String, ?> record;
-        private int retryCount = 0;
+        private long initializationTimestamp = System.currentTimeMillis();
 
         @Override
         public void run() {
             if (!futureTask.isDone()) {
                 try {
                     final ThreadPoolExecutor executor = executorStrategy.get(record);
+                    try {
+                        /*
+                         * submit(Runnable) method creates new threads when possible.
+                         * We need to first try this. Since this is not blocking, it will
+                         * throw RejectedExecutionException when threads are busy and queue is full.
+                         */
+                        executor.submit(futureTask);
+                        return;
+                    } catch (RejectedExecutionException e) {
+                        LOG.debug("{} rejected by exception: {}", record.topic(), e.getMessage());
+                    }
                     if (!executor.getQueue().offer(futureTask, 5, TimeUnit.MILLISECONDS)) {
-                        retryCount++;
-                        LOG.info("Queue is still full. retryCount={}, topic={}, partition={}",
-                                retryCount, record.topic(), record.partition());
-                        try {
-                            retryExecutor.submit(this);
-                        } catch (RejectedExecutionException e) {
-                            LOG.info("handleReject::rejected execution, retryExecutor may be closing... {}", e.getMessage());
-                            retryInLoop();
+                        final long elapsedTime = System.currentTimeMillis() - initializationTimestamp;
+                        if (elapsedTime > 2000) {
+                            LOG.info("handleReject::{} threads are busy more than {} seconds. Retry queue size is {}",
+                                    record.topic(), elapsedTime, retryExecutor.getQueue().size());
                         }
+                        retryExecutor.submit(this);
                     }
                 } catch (InterruptedException e) {
                     LOG.info("handleReject::execution queue interrupted::{}-{}", record.topic(), record.partition());
                     Thread.currentThread().interrupt();
                 }
             }
-        }
-
-        private void retryInLoop() {
-            long start = System.currentTimeMillis();
-            long elapsedTime = 0;
-
-            while (!futureTask.isDone()) {
-                try {
-                    final ThreadPoolExecutor executor = executorStrategy.get(record);
-                    if (!executor.getQueue().offer(futureTask, 100, TimeUnit.MILLISECONDS)) {
-                        elapsedTime = System.currentTimeMillis() - start;
-                        if (elapsedTime > 2000) {
-                            LOG.info("handleReject::threads are busy more than {} seconds", elapsedTime / 1000);
-                            start = System.currentTimeMillis();
-                        }
-                    }
-                } catch (InterruptedException e) {
-                    LOG.info("handleReject::execution queue interrupted");
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-
-            LOG.info("handleReject::completed in {} millis", elapsedTime);
         }
     }
 }

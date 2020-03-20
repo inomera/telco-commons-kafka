@@ -63,8 +63,9 @@ public class ExecutorPerTopicStrategy implements ExecutorStrategy {
         executor.setCorePoolSize(coreThreadCount);
         executor.setMaximumPoolSize(maxThreadCount);
         executor.setKeepAliveTime(keepAliveTime, keepAliveTimeUnit);
-        LOG.info("reconfigure::executorName={}, coreThreadCount={}, maxThreadCount={}, keepAliveTime={}, keepAliveTimeUnit={}",
-                executorName, coreThreadCount, maxThreadCount, keepAliveTime, keepAliveTimeUnit);
+        final int prestartedCoreThreads = executor.prestartAllCoreThreads();
+        LOG.info("reconfigure::executorName={}, coreThreadCount={}, maxThreadCount={}, keepAliveTime={}, keepAliveTimeUnit={}, startedNewThreads={}",
+                executorName, coreThreadCount, maxThreadCount, keepAliveTime, keepAliveTimeUnit, prestartedCoreThreads);
     }
 
     private void createExecutorIfNotExist(String executorName) {
@@ -80,7 +81,9 @@ public class ExecutorPerTopicStrategy implements ExecutorStrategy {
     }
 
     private ThreadPoolExecutor createExecutor() {
-        return new ThreadPoolExecutor(coreThreadCount, maxThreadCount, keepAliveTime, keepAliveTimeUnit,
+        final ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(coreThreadCount, maxThreadCount, keepAliveTime, keepAliveTimeUnit,
                 queueSupplier.get(), threadFactory);
+        threadPoolExecutor.prestartAllCoreThreads();
+        return threadPoolExecutor;
     }
 }
