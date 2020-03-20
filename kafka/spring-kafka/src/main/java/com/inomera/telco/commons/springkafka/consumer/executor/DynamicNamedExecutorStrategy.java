@@ -81,6 +81,7 @@ public class DynamicNamedExecutorStrategy implements ExecutorStrategy {
     @Override
     public void start() {
         defaultExecutor = defaultExecutorSpec.createThreadPool();
+        defaultExecutor.prestartAllCoreThreads();
     }
 
     @Override
@@ -114,7 +115,6 @@ public class DynamicNamedExecutorStrategy implements ExecutorStrategy {
             threadPoolExecutor.prestartAllCoreThreads();
             return threadPoolExecutor;
         }
-        defaultExecutor.prestartAllCoreThreads();
         return defaultExecutor;
     }
 }
