@@ -55,7 +55,8 @@ public class DynamicNamedExecutorStrategy implements ExecutorStrategy {
         threadPoolExecutor.setCorePoolSize(executorSpec.getCoreThreadCount());
         threadPoolExecutor.setMaximumPoolSize(executorSpec.getMaxThreadCount());
         threadPoolExecutor.setKeepAliveTime(executorSpec.getKeepAliveTime(), executorSpec.getKeepAliveTimeUnit());
-        LOG.info("configureExecutor::pool [{}] configured. oldConfig={}, newConfig={}", threadPoolExecutor, existingConfig, executorSpec);
+        final int prestartAllCoreThreads = threadPoolExecutor.prestartAllCoreThreads();
+        LOG.info("configureExecutor::pool [{}] configured. oldConfig={}, newConfig={}, startedNewThreads={}", threadPoolExecutor, existingConfig, executorSpec, prestartAllCoreThreads);
     }
 
     public void removeExecutor(String executorName) {
@@ -80,6 +81,7 @@ public class DynamicNamedExecutorStrategy implements ExecutorStrategy {
     @Override
     public void start() {
         defaultExecutor = defaultExecutorSpec.createThreadPool();
+        defaultExecutor.prestartAllCoreThreads();
     }
 
     @Override
@@ -109,9 +111,10 @@ public class DynamicNamedExecutorStrategy implements ExecutorStrategy {
     private ThreadPoolExecutor createExecutor(String executorName) {
         final ThreadPoolExecutorSpec specForExecutorName = executorSpecs.get(executorName);
         if (specForExecutorName != null) {
-            return specForExecutorName.createThreadPool();
+            final ThreadPoolExecutor threadPoolExecutor = specForExecutorName.createThreadPool();
+            threadPoolExecutor.prestartAllCoreThreads();
+            return threadPoolExecutor;
         }
-
         return defaultExecutor;
     }
 }
