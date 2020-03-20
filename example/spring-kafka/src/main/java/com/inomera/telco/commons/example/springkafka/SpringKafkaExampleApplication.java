@@ -10,21 +10,15 @@ import com.inomera.telco.commons.springkafka.builder.KafkaConsumerBuilder;
 import com.inomera.telco.commons.springkafka.consumer.KafkaMessageConsumer;
 import com.inomera.telco.commons.springkafka.consumer.OffsetCommitStrategy;
 import com.inomera.telco.commons.springkafka.producer.KafkaMessagePublisher;
-import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.scheduling.annotation.Scheduled;
 
-import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.StringReader;
 import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -51,9 +45,6 @@ public class SpringKafkaExampleApplication {
     public KryoFactory kryoFactory() {
         return new ThreadLocalKryoFactory(kryoClassRegistry());
     }
-
-    @Bean
-    public CountDownLatch countDownLatch() { return new CountDownLatch(20_000); }
 
     @Bean
     public KryoKafkaSerializer kafkaSerializer() {
@@ -88,10 +79,8 @@ public class SpringKafkaExampleApplication {
                 .invoker()
                 .unordered()
                 .dynamicNamedExecutors()
-                .configureExecutor("mouse-event.click", 0, 3, 1, TimeUnit.MINUTES)
-                .queueCapacity(0)
-                .configureExecutor("mouse-event.dblclick", 3, 3, 1, TimeUnit.MINUTES)
-                .queueCapacity(0)
+                .configureExecutor("mouse-event.click", 3, 5, 1, TimeUnit.MINUTES)
+                .configureExecutor("mouse-event.dblclick", 3, 5, 1, TimeUnit.MINUTES)
                 .and()
                 .and()
                 .and()
