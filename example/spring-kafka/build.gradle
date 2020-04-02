@@ -27,8 +27,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation "com.esotericsoftware:kryo:4.0.1"
 
-    compile project(":kafka:spring-kafka")
-    compile project(":kafka:kafka-kryo")
+    compile project(":spring-kafka")
+    compile project(":kafka-kryo")
 
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")

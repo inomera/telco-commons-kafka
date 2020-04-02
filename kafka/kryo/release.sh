@@ -61,4 +61,4 @@ git push
 git push --tags
 
 # publish it
-../../gradlew :kafka:kafka-kryo:publish
+../../gradlew :kafka-kryo:publish
