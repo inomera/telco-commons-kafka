@@ -1,16 +1,13 @@
 rootProject.name = 'telco-commons-kafka'
 
-include 'example'
-project(':example').name = 'examples'
+include ':spring-kafka-example'
+project(':spring-kafka-example').projectDir = new File('example/spring-kafka')
 
-include 'example:spring-kafka'
-project(':example:spring-kafka').name = 'example-spring-kafka'
+include ':spring-kafka'
+project(':spring-kafka').projectDir = new File('kafka/spring-kafka')
 
-include 'kafka'
-project(':kafka').name = 'kafka'
+include ':kafka-kryo'
+project(':kafka-kryo').projectDir = new File('kafka/kryo')
 
-include 'kafka:spring-kafka'
-project(':kafka:spring-kafka').name ='spring-kafka'
-
-include 'kafka:kryo'
-project(':kafka:kryo').name ='kafka-kryo'
+include ':kafka-smile'
+project(':kafka-smile').projectDir = new File('kafka/smile')

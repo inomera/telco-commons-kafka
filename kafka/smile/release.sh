@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-TAG_PREFIX="spring-kafka"
+TAG_PREFIX="kafka-smile"
 
 # ensure we're up to date
 git pull
@@ -61,4 +61,4 @@ git push
 git push --tags
 
 # publish it
-../../gradlew :spring-kafka:publish
+../../gradlew :kafka-smile:publish
