@@ -1,7 +1,6 @@
 package com.inomera.telco.commons.kafkasmile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.slf4j.Logger;
@@ -17,7 +16,7 @@ import java.util.Map;
 public class SmileKafkaDeserializer implements Deserializer<Object> {
     private static final Logger LOG = LoggerFactory.getLogger(SmileKafkaDeserializer.class);
     private final ClassIdRegistry classIdRegistry;
-    private final ObjectMapper objectMapper = new ObjectMapper(new SmileFactory());
+    private final ObjectMapper objectMapper = SmileObjectMapperFactory.create();
 
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) {

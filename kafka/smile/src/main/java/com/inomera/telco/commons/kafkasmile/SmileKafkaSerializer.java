@@ -1,7 +1,6 @@
 package com.inomera.telco.commons.kafkasmile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.common.serialization.Serializer;
 
@@ -18,7 +17,7 @@ import static com.inomera.telco.commons.kafkasmile.SmileSerializationConstants.C
 @RequiredArgsConstructor
 public class SmileKafkaSerializer implements Serializer<Object> {
     private final ClassIdRegistry classIdRegistry;
-    private final ObjectMapper objectMapper = new ObjectMapper(new SmileFactory());
+    private final ObjectMapper objectMapper = SmileObjectMapperFactory.create();
 
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) {
