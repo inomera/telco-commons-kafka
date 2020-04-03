@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ThreadFactory;
 
 import static com.inomera.telco.commons.springkafka.SpringKafkaConstants.INVOKER_THREAD_NAME_FORMAT;
@@ -86,11 +87,16 @@ public class ConsumerInvokerBuilder {
         final MethodInvoker methodInvoker = new MethodInvoker(groupId, listenerMethodRegistry, interceptors);
 
         if (orderGuarantee) {
-            final ExecutorStrategy executorStrategy = orderedProcessingStrategyBuilder.build(groupId);
+            final ExecutorStrategy executorStrategy = Optional.ofNullable(orderedProcessingStrategyBuilder)
+                    .orElse(new OrderedProcessingStrategyBuilder(this))
+                    .build(groupId);
             return new SimpleConsumerInvoker(methodInvoker, executorStrategy);
         }
 
-        final ExecutorStrategy executorStrategy = unorderedProcessingStrategyBuilder.build(groupId);
+        final ExecutorStrategy executorStrategy = Optional.ofNullable(unorderedProcessingStrategyBuilder)
+                .orElse(new UnorderedProcessingStrategyBuilder(this))
+                .build(groupId);
+
         final PauseAndRetryRejectionHandler rejectionHandler = new PauseAndRetryRejectionHandler(consumerPoller,
                 executorStrategy);
         return new RejectionAwareConsumerInvoker(methodInvoker, executorStrategy, rejectionHandler);
