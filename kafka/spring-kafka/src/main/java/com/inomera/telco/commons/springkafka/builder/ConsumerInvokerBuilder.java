@@ -1,9 +1,10 @@
 package com.inomera.telco.commons.springkafka.builder;
 
 import com.inomera.telco.commons.lang.Assert;
-import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
 import com.inomera.telco.commons.springkafka.consumer.executor.ExecutorStrategy;
 import com.inomera.telco.commons.springkafka.consumer.invoker.*;
+import com.inomera.telco.commons.springkafka.consumer.invoker.fault.ListenerMethodNotFoundHandler;
+import com.inomera.telco.commons.springkafka.consumer.invoker.fault.LoggingListenerMethodNotFoundHandler;
 import com.inomera.telco.commons.springkafka.consumer.poller.ConsumerPoller;
 import lombok.RequiredArgsConstructor;
 
@@ -11,9 +12,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ThreadFactory;
-
-import static com.inomera.telco.commons.springkafka.SpringKafkaConstants.INVOKER_THREAD_NAME_FORMAT;
 
 /**
  * @author Serdar Kuzucu
@@ -23,10 +21,9 @@ public class ConsumerInvokerBuilder {
     private final KafkaConsumerBuilder kafkaConsumerBuilder;
     private final ListenerMethodRegistry listenerMethodRegistry;
 
-    private String invokerThreadNamePrefix;
-    private ThreadFactory invokerThreadFactory;
-    private List<ListenerInvocationInterceptor> interceptors = new ArrayList<>();
+    private final List<ListenerInvocationInterceptor> interceptors = new ArrayList<>();
     private boolean orderGuarantee = true;
+    private ListenerMethodNotFoundHandler listenerMethodNotFoundHandler;
 
     private UnorderedProcessingStrategyBuilder unorderedProcessingStrategyBuilder;
     private OrderedProcessingStrategyBuilder orderedProcessingStrategyBuilder;
@@ -43,18 +40,6 @@ public class ConsumerInvokerBuilder {
         return this;
     }
 
-    public ConsumerInvokerBuilder invokerThreadFactory(ThreadFactory invokerThreadFactory) {
-        Assert.notNull(invokerThreadFactory, "invokerThreadFactory cannot be null");
-        this.invokerThreadFactory = invokerThreadFactory;
-        return this;
-    }
-
-    public ConsumerInvokerBuilder invokerThreadNamePrefix(String invokerThreadNamePrefix) {
-        Assert.notNull(invokerThreadNamePrefix, "invokerThreadFactory cannot be null");
-        this.invokerThreadNamePrefix = invokerThreadNamePrefix;
-        return this;
-    }
-
     public OrderedProcessingStrategyBuilder ordered() {
         this.orderGuarantee = true;
         this.orderedProcessingStrategyBuilder = new OrderedProcessingStrategyBuilder(this);
@@ -67,24 +52,31 @@ public class ConsumerInvokerBuilder {
         return unorderedProcessingStrategyBuilder;
     }
 
+    public ConsumerInvokerBuilder listenerMethodNotFoundHandler(
+            ListenerMethodNotFoundHandler listenerMethodNotFoundHandler) {
+        Assert.notNull(listenerMethodNotFoundHandler, "listenerMethodNotFoundHandler is null");
+        this.listenerMethodNotFoundHandler = listenerMethodNotFoundHandler;
+        return this;
+    }
+
     public KafkaConsumerBuilder and() {
         return kafkaConsumerBuilder;
     }
 
-    private ThreadFactory getOrCreateInvokerThreadFactory(String groupId) {
-        if (this.invokerThreadFactory != null) {
-            return this.invokerThreadFactory;
+    private ListenerMethodNotFoundHandler getOrCreateListenerMethodNotFoundHandler() {
+        if (this.listenerMethodNotFoundHandler != null) {
+            return this.listenerMethodNotFoundHandler;
         }
+        return new LoggingListenerMethodNotFoundHandler();
+    }
 
-        if (invokerThreadNamePrefix != null) {
-            return new IncrementalNamingThreadFactory(invokerThreadNamePrefix);
-        }
-
-        return new IncrementalNamingThreadFactory(String.format(INVOKER_THREAD_NAME_FORMAT, groupId));
+    private MethodInvoker buildMethodInvoker(String groupId) {
+        return new MethodInvoker(groupId, listenerMethodRegistry, interceptors,
+                getOrCreateListenerMethodNotFoundHandler());
     }
 
     ConsumerInvoker build(ConsumerPoller consumerPoller, String groupId) {
-        final MethodInvoker methodInvoker = new MethodInvoker(groupId, listenerMethodRegistry, interceptors);
+        final MethodInvoker methodInvoker = buildMethodInvoker(groupId);
 
         if (orderGuarantee) {
             final ExecutorStrategy executorStrategy = Optional.ofNullable(orderedProcessingStrategyBuilder)

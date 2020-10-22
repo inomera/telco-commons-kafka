@@ -4,6 +4,7 @@ import com.esotericsoftware.kryo.serializers.JavaSerializer;
 import com.inomera.telco.commons.example.springkafka.msg.AbstractMessage;
 import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedBeautifullyMessage;
 import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedMessage;
+import com.inomera.telco.commons.example.springkafka.msg.UnListenedMessage;
 import com.inomera.telco.commons.kafkakryo.*;
 import com.inomera.telco.commons.springkafka.annotation.EnableKafkaListeners;
 import com.inomera.telco.commons.springkafka.builder.KafkaConsumerBuilder;
@@ -38,6 +39,7 @@ public class SpringKafkaExampleApplication {
             kryo.register(SomethingHappenedMessage.class, new JavaSerializer(), 1001);
             kryo.register(SomethingHappenedBeautifullyMessage.class, new JavaSerializer(), 1002);
             kryo.register(AbstractMessage.class, new JavaSerializer(), 1002);
+            kryo.register(UnListenedMessage.class, new JavaSerializer(), 1003);
         };
     }
 
@@ -72,7 +74,7 @@ public class SpringKafkaExampleApplication {
 
         return builder.properties(properties)
                 .groupId("event-logger")
-                .topics("mouse-event.click", "mouse-event.dblclick")
+                .topics("mouse-event.click", "mouse-event.dblclick", "example.unlistened-topic")
                 .offsetCommitStrategy(OffsetCommitStrategy.AT_MOST_ONCE_SINGLE)
                 .valueDeserializer(kafkaDeserializer())
                 .autoPartitionPause(true)
@@ -81,6 +83,7 @@ public class SpringKafkaExampleApplication {
                 .dynamicNamedExecutors()
                 .configureExecutor("mouse-event.click", 3, 5, 1, TimeUnit.MINUTES)
                 .configureExecutor("mouse-event.dblclick", 3, 5, 1, TimeUnit.MINUTES)
+                .configureExecutor("example.unlistened-topic", 3, 5, 1, TimeUnit.MINUTES)
                 .and()
                 .and()
                 .and()
