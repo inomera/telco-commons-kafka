@@ -27,7 +27,7 @@ public class SmartKafkaMessageConsumer implements KafkaMessageConsumer {
         }
         running.set(true);
         consumerInvoker.start();
-        consumerPoller.start();
+        consumerPoller.start(this);
     }
 
     @Override

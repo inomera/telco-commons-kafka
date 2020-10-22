@@ -3,8 +3,14 @@ package com.inomera.telco.commons.springkafka.consumer.poller;
 import com.inomera.telco.commons.lang.Assert;
 import com.inomera.telco.commons.lang.PropertyUtils;
 import com.inomera.telco.commons.lang.thread.FutureUtils;
+import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
 import com.inomera.telco.commons.lang.thread.ThreadUtils;
 import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerProperties;
+import com.inomera.telco.commons.springkafka.consumer.KafkaMessageConsumer;
+import com.inomera.telco.commons.springkafka.consumer.PollerThreadState;
+import com.inomera.telco.commons.springkafka.consumer.ConsumerThreadStore;
+import com.inomera.telco.commons.springkafka.util.HostUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
@@ -38,14 +44,17 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
     private ExecutorService executorService;
     private KafkaConsumer<String, ?> consumer;
     private boolean autoPartitionPause;
+    private final ConsumerThreadStore threadStore;
 
     public DefaultConsumerPoller(KafkaConsumerProperties kafkaConsumerProperties,
                                  ThreadFactory consumerThreadFactory, Deserializer<?> valueDeserializer,
-                                 boolean autoPartitionPause) {
+                                 boolean autoPartitionPause,
+                                 ConsumerThreadStore threadStore) {
         this.kafkaConsumerProperties = kafkaConsumerProperties;
         this.consumerThreadFactory = consumerThreadFactory;
         this.valueDeserializer = valueDeserializer;
         this.autoPartitionPause = autoPartitionPause;
+        this.threadStore = threadStore;
     }
 
     @Override
@@ -190,13 +199,35 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
     }
 
     @Override
-    public void start() {
+    public void start(KafkaMessageConsumer kafkaMessageConsumer) {
         Assert.notNull(consumerRecordHandler, "ConsumerRecordHandler is null!");
         LOGGER.info("Starting consumer. group={}", kafkaConsumerProperties.getGroupId());
         this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), valueDeserializer);
         this.executorService = Executors.newCachedThreadPool(consumerThreadFactory);
         executorService.submit(this);
         running.set(true);
+
+        if (consumerThreadFactory instanceof IncrementalNamingThreadFactory) {
+            final IncrementalNamingThreadFactory consumerThreadFactory = (IncrementalNamingThreadFactory) this.consumerThreadFactory;
+            for (Thread thread : Thread.getAllStackTraces().keySet()) {
+                if (StringUtils.startsWithIgnoreCase(thread.getName(), consumerThreadFactory.getThreadNamePrefix())) {
+                    final String hostname = HostUtils.getHostname();
+                    final String hostedThreadName = hostname.concat("-").concat(thread.getName());
+                    final long threadId = thread.getId();
+
+                    final PollerThreadState pollerThreadState = new PollerThreadState();
+                    pollerThreadState.setThreadId(threadId);
+                    pollerThreadState.setHostname(hostname);
+                    pollerThreadState.setThreadName(hostedThreadName);
+                    pollerThreadState.setOldJvmState(thread.getState().name());
+                    pollerThreadState.setCurrentJvmState(thread.getState().name());
+                    pollerThreadState.setKafkaMessageConsumer(kafkaMessageConsumer);
+
+                    threadStore.put(threadId, pollerThreadState);
+                }
+            }
+        }
+
     }
 
     @Override
