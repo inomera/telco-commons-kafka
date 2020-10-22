@@ -54,6 +54,10 @@ public class PartitionKeyAwareExecutorStrategy implements ExecutorStrategy {
     private int getPartitionKey(ConsumerRecord<String, ?> record) {
         final Object message = record.value();
 
+        if (message == null) {
+            return 0;
+        }
+
         if (message instanceof PartitionKeyAware) {
             return ((PartitionKeyAware) message).getPartitionKey().hashCode();
         }

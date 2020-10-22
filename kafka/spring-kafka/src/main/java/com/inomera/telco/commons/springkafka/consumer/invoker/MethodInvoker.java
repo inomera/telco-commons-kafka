@@ -27,6 +27,11 @@ public class MethodInvoker {
         return new FutureTask<>(() -> {
             try {
                 final Object msg = record.value();
+                if (msg == null) {
+                    LOGGER.info("Null received from topic: {}", record.topic());
+                    return;
+                }
+
                 listenerMethodRegistry.getListenerMethods(groupId, record.topic(), msg.getClass())
                         .forEach(listenerMethod -> invokeListenerMethod(listenerMethod, msg));
             } catch (Exception e) {
