@@ -16,6 +16,7 @@ import java.util.function.Function;
  */
 public class DynamicNamedExecutorStrategy implements ExecutorStrategy {
     private static final Logger LOG = LoggerFactory.getLogger(DynamicNamedExecutorStrategy.class);
+    private static final String DEFAULT_EXECUTOR_NAME = "DefaultExecutor";
 
     private final Map<String, ThreadPoolExecutor> executorMap = new ConcurrentHashMap<>();
     private final Map<String, ThreadPoolExecutorSpec> executorSpecs = new ConcurrentHashMap<>();
@@ -44,6 +45,21 @@ public class DynamicNamedExecutorStrategy implements ExecutorStrategy {
         return executorMap.get(executorName);
     }
 
+    public void configureDefaultExecutor(ThreadPoolExecutorSpec executorSpec) {
+        synchronized (lock) {
+            final ThreadPoolExecutorSpec existingConfig = this.defaultExecutorSpec;
+            this.defaultExecutorSpec = executorSpec;
+            if (this.defaultExecutor == null) {
+                // Strategy has not been started yet.
+                return;
+            }
+
+            final int startedNewThreads = configureExecutorAndPreStartThreads(this.defaultExecutor, executorSpec);
+            LOG.info("configureDefaultExecutor::pool [{}] configured. oldConfig={}, newConfig={}, startedNewThreads={}",
+                    DEFAULT_EXECUTOR_NAME, existingConfig, executorSpec, startedNewThreads);
+        }
+    }
+
     public void configureExecutor(String executorName, ThreadPoolExecutorSpec executorSpec) {
         // We will replace if existing thread pool exists
         final ThreadPoolExecutorSpec existingConfig = executorSpecs.put(executorName, executorSpec);
@@ -52,11 +68,16 @@ public class DynamicNamedExecutorStrategy implements ExecutorStrategy {
         // Since we have put the `config` into `executorSpecs`,
         // new ThreadPoolExecutor will be configured with the new config.
         // However, we need to reconfigure it in case it is an existing pool.
+        final int startedNewThreads = configureExecutorAndPreStartThreads(threadPoolExecutor, executorSpec);
+        LOG.info("configureExecutor::pool [{}] configured. oldConfig={}, newConfig={}, startedNewThreads={}",
+                executorName, existingConfig, executorSpec, startedNewThreads);
+    }
+
+    private int configureExecutorAndPreStartThreads(ThreadPoolExecutor threadPoolExecutor, ThreadPoolExecutorSpec executorSpec) {
         threadPoolExecutor.setCorePoolSize(executorSpec.getCoreThreadCount());
         threadPoolExecutor.setMaximumPoolSize(executorSpec.getMaxThreadCount());
         threadPoolExecutor.setKeepAliveTime(executorSpec.getKeepAliveTime(), executorSpec.getKeepAliveTimeUnit());
-        final int prestartAllCoreThreads = threadPoolExecutor.prestartAllCoreThreads();
-        LOG.info("configureExecutor::pool [{}] configured. oldConfig={}, newConfig={}, startedNewThreads={}", threadPoolExecutor, existingConfig, executorSpec, prestartAllCoreThreads);
+        return threadPoolExecutor.prestartAllCoreThreads();
     }
 
     public void removeExecutor(String executorName) {
@@ -80,8 +101,10 @@ public class DynamicNamedExecutorStrategy implements ExecutorStrategy {
 
     @Override
     public void start() {
-        defaultExecutor = defaultExecutorSpec.createThreadPool();
-        defaultExecutor.prestartAllCoreThreads();
+        synchronized (lock) {
+            defaultExecutor = defaultExecutorSpec.createThreadPool();
+            defaultExecutor.prestartAllCoreThreads();
+        }
     }
 
     @Override
@@ -90,7 +113,7 @@ public class DynamicNamedExecutorStrategy implements ExecutorStrategy {
             executorMap.values().forEach(ThreadPoolExecutor::shutdown);
             defaultExecutor.shutdown();
 
-            ThreadPoolExecutorUtils.closeGracefully(defaultExecutor, LOG, "DefaultExecutor");
+            ThreadPoolExecutorUtils.closeGracefully(defaultExecutor, LOG, DEFAULT_EXECUTOR_NAME);
             executorMap.forEach((executorName, executor) -> ThreadPoolExecutorUtils.closeGracefully(executor, LOG, executorName));
             executorMap.clear();
         }
