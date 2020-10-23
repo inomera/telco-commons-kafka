@@ -17,6 +17,6 @@ public class SomeListener {
     @KafkaListener(groupId = "event-logger", topics = {"mouse-event.click", "mouse-event.dblclick"}, includeSubclasses = true)
     public void handle(Message message) {
         LOG.info("handle : message={}", message.getClass().getSimpleName());
-        ThreadUtils.sleepQuietly(10);
+        ThreadUtils.sleepQuietly(300);
     }
 }

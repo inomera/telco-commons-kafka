@@ -2,10 +2,7 @@ package com.inomera.telco.commons.springkafka.builder;
 
 import com.inomera.telco.commons.lang.Assert;
 import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
-import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerProperties;
-import com.inomera.telco.commons.springkafka.consumer.KafkaMessageConsumer;
-import com.inomera.telco.commons.springkafka.consumer.OffsetCommitStrategy;
-import com.inomera.telco.commons.springkafka.consumer.SmartKafkaMessageConsumer;
+import com.inomera.telco.commons.springkafka.consumer.*;
 import com.inomera.telco.commons.springkafka.consumer.invoker.ConsumerInvoker;
 import com.inomera.telco.commons.springkafka.consumer.invoker.ListenerMethodRegistry;
 import com.inomera.telco.commons.springkafka.consumer.poller.ConsumerPoller;
@@ -13,6 +10,7 @@ import com.inomera.telco.commons.springkafka.consumer.poller.DefaultConsumerPoll
 import org.apache.kafka.common.serialization.Deserializer;
 
 import java.util.*;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.regex.Pattern;
 
@@ -30,6 +28,7 @@ public class KafkaConsumerBuilder {
     private Deserializer<?> valueDeserializer;
     private ThreadFactory consumerThreadFactory;
     private boolean autoPartitionPause = true;
+    private ConsumerThreadStore threadStore;
     private final ConsumerInvokerBuilder consumerInvokerBuilder;
 
     private KafkaConsumerBuilder(ListenerMethodRegistry listenerMethodRegistry) {
@@ -100,6 +99,12 @@ public class KafkaConsumerBuilder {
         return this;
     }
 
+    public KafkaConsumerBuilder threadStore(ConsumerThreadStore threadStore) {
+        Assert.notNull(threadStore, "threadStore cannot be null");
+        this.threadStore = threadStore;
+        return this;
+    }
+
     public ConsumerInvokerBuilder invoker() {
         return consumerInvokerBuilder;
     }
@@ -127,7 +132,7 @@ public class KafkaConsumerBuilder {
                 offsetCommitStrategy, this.properties);
 
         final ConsumerPoller consumerPoller = new DefaultConsumerPoller(properties, getOrCreateConsumerThreadFactory(),
-                valueDeserializer, autoPartitionPause);
+                valueDeserializer, autoPartitionPause, threadStore);
 
         final ConsumerInvoker invoker = consumerInvokerBuilder.build(consumerPoller, groupId);
         return new SmartKafkaMessageConsumer(consumerPoller, invoker);

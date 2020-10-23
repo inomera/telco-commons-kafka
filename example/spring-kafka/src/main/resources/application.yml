@@ -1,6 +1,42 @@
-
 logging:
   pattern:
     console: '%clr(%d{HH:mm:ss.SSS}){blue} %clr(%-5p) %clr([%15t]){cyan} %clr(:){red} %clr(%m){faint}%n'
 server:
   port: 8080
+
+kafka-producers:
+  default:
+    properties: |
+      max.request.size=15728640
+      bootstrap.servers=localhost:9092
+      enable.idempotence=true
+      retries=2147483647
+      max.in.flight.requests.per.connection=1
+      acks=all
+      linger.ms=10
+      metadata.max.age.ms=10000
+      compression.type=lz4
+      retry.backoff.ms=50
+      request.timeout.ms=180000
+      max.block.ms=190000
+      reconnect.backoff.ms=100
+      reconnect.backoff.max.ms=9223372036854775806
+kafka-consumers:
+  default:
+    properties: |-
+      bootstrap.servers=localhost:9092
+      metadata.max.age.ms=10000
+      enable.auto.commit=false
+      auto.offset.reset=earliest
+      heartbeat.interval.ms=10000
+      request.timeout.ms=31000
+      session.timeout.ms=30000
+      max.poll.records=10
+      reconnect.backoff.ms=5000
+      reconnect.backoff.max.ms=9223372036854775806
+    number-of-invoker-threads: 2
+    offset-commit-strategy: AT_MOST_ONCE_BULK
+    pollerThreadProperties: |-
+      poller.thread.checker.active=true
+      poller.thread.checker.initialDelaySec=10
+      poller.thread.checker.retryAsSec=10

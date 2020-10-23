@@ -8,18 +8,15 @@ import com.inomera.telco.commons.example.springkafka.msg.UnListenedMessage;
 import com.inomera.telco.commons.kafkakryo.*;
 import com.inomera.telco.commons.springkafka.annotation.EnableKafkaListeners;
 import com.inomera.telco.commons.springkafka.builder.KafkaConsumerBuilder;
-import com.inomera.telco.commons.springkafka.consumer.KafkaMessageConsumer;
-import com.inomera.telco.commons.springkafka.consumer.OffsetCommitStrategy;
+import com.inomera.telco.commons.springkafka.consumer.*;
 import com.inomera.telco.commons.springkafka.producer.KafkaMessagePublisher;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-import java.io.IOException;
 import java.io.Serializable;
-import java.io.StringReader;
-import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -59,23 +56,40 @@ public class SpringKafkaExampleApplication {
     }
 
     @Bean
-    public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder) throws IOException {
-        final Properties properties = new Properties();
-        properties.load(new StringReader("enable.auto.commit=false\n" +
-                "auto.commit.interval.ms=2147483647\n" +
-                "bootstrap.servers=localhost:9092\n" +
-                "heartbeat.interval.ms=10000\n" +
-                "request.timeout.ms=31000\n" +
-                "session.timeout.ms=30000\n" +
-                "max.partition.fetch.bytes=15728640\n" +
-                "max.poll.records=10\n" +
-                "auto.offset.reset=earliest\n" +
-                "metadata.max.age.ms=10000"));
+    public ConsumerThreadStore consumerThreadStore() {
+        return new PollerThreadStore();
+    }
 
-        return builder.properties(properties)
+    @Bean
+    public ThreadStateChecker consumerThreadStateChecker(KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties) {
+        return new PollerThreadStateChecker(consumerThreadStore(), pollerThreadNotifier(), defaultKafkaConsumerConfigurationProperties.getPollerThreadProperties());
+    }
+
+    @Bean
+    public PollerThreadNotifier pollerThreadNotifier(){
+        return new DefaultPollerThreadNotifier();
+    }
+
+    @Bean
+    @ConfigurationProperties("kafka-producers.default")
+    public KafkaProducerConfigurationProperties defaultKafkaProducerConfigurationProperties() {
+        return new KafkaProducerConfigurationProperties();
+    }
+
+    @Bean
+    @ConfigurationProperties(prefix = "kafka-consumers.default")
+    public KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties() {
+        return new KafkaConsumerConfigurationProperties();
+    }
+
+    @Bean
+    public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder,
+                                         KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties) {
+
+        return builder.properties(defaultKafkaConsumerConfigurationProperties.getProperties())
                 .groupId("event-logger")
                 .topics("mouse-event.click", "mouse-event.dblclick", "example.unlistened-topic")
-                .offsetCommitStrategy(OffsetCommitStrategy.AT_MOST_ONCE_SINGLE)
+                .offsetCommitStrategy(defaultKafkaConsumerConfigurationProperties.getOffsetCommitStrategy())
                 .valueDeserializer(kafkaDeserializer())
                 .autoPartitionPause(true)
                 .invoker()
@@ -87,21 +101,13 @@ public class SpringKafkaExampleApplication {
                 .and()
                 .and()
                 .and()
+                .threadStore(consumerThreadStore())
                 .build();
     }
 
     @Bean
-    public KafkaMessagePublisher<Serializable> stringKafkaMessagePublisher() throws IOException {
-        final Properties properties = new Properties();
-        properties.load(new StringReader("max.request.size=15728640\n" +
-                "bootstrap.servers=localhost:9092\n" +
-                "enable.idempotence=true\n" +
-                "retries=2147483647\n" +
-                "max.in.flight.requests.per.connection=1\n" +
-                "acks=all\n" +
-                "linger.ms=10\n" +
-                "metadata.max.age.ms=10000"));
-
-        return new KafkaMessagePublisher<>(kafkaSerializer(), properties);
+    public KafkaMessagePublisher<Serializable> stringKafkaMessagePublisher(
+            KafkaProducerConfigurationProperties defaultKafkaProducerConfigurationProperties) {
+        return new KafkaMessagePublisher<>(kafkaSerializer(), defaultKafkaProducerConfigurationProperties.getProperties());
     }
 }

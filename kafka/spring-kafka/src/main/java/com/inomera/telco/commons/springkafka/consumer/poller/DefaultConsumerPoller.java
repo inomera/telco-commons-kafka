@@ -4,7 +4,11 @@ import com.inomera.telco.commons.lang.Assert;
 import com.inomera.telco.commons.lang.PropertyUtils;
 import com.inomera.telco.commons.lang.thread.FutureUtils;
 import com.inomera.telco.commons.lang.thread.ThreadUtils;
+import com.inomera.telco.commons.springkafka.consumer.ConsumerThreadStore;
 import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerProperties;
+import com.inomera.telco.commons.springkafka.consumer.KafkaMessageConsumer;
+import com.inomera.telco.commons.springkafka.consumer.PollerThreadState;
+import com.inomera.telco.commons.springkafka.util.HostUtils;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
@@ -38,14 +42,17 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
     private ExecutorService executorService;
     private KafkaConsumer<String, ?> consumer;
     private boolean autoPartitionPause;
+    private final ConsumerThreadStore threadStore;
 
     public DefaultConsumerPoller(KafkaConsumerProperties kafkaConsumerProperties,
                                  ThreadFactory consumerThreadFactory, Deserializer<?> valueDeserializer,
-                                 boolean autoPartitionPause) {
+                                 boolean autoPartitionPause,
+                                 ConsumerThreadStore threadStore) {
         this.kafkaConsumerProperties = kafkaConsumerProperties;
         this.consumerThreadFactory = consumerThreadFactory;
         this.valueDeserializer = valueDeserializer;
         this.autoPartitionPause = autoPartitionPause;
+        this.threadStore = threadStore;
     }
 
     @Override
@@ -190,13 +197,44 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
     }
 
     @Override
-    public void start() {
+    public void start(KafkaMessageConsumer kafkaMessageConsumer) {
         Assert.notNull(consumerRecordHandler, "ConsumerRecordHandler is null!");
         LOGGER.info("Starting consumer. group={}", kafkaConsumerProperties.getGroupId());
         this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), valueDeserializer);
-        this.executorService = Executors.newCachedThreadPool(consumerThreadFactory);
+        this.executorService = Executors.newCachedThreadPool(new DelegatingThreadFactory(consumerThreadFactory) {
+            @Override
+            protected void afterThreadIsCreated(Thread thread) {
+                final String hostname = HostUtils.getHostname();
+                final String hostedThreadName = hostname.concat("-").concat(thread.getName());
+                final long threadId = thread.getId();
+
+                final PollerThreadState pollerThreadState = new PollerThreadState();
+                pollerThreadState.setThreadId(threadId);
+                pollerThreadState.setHostname(hostname);
+                pollerThreadState.setThreadName(hostedThreadName);
+                pollerThreadState.setOldJvmState(thread.getState().name());
+                pollerThreadState.setCurrentJvmState(thread.getState().name());
+                pollerThreadState.setKafkaMessageConsumer(kafkaMessageConsumer);
+
+                threadStore.put(threadId, pollerThreadState);
+            }
+        });
         executorService.submit(this);
         running.set(true);
+    }
+
+    public abstract class DelegatingThreadFactory implements ThreadFactory {
+        private final ThreadFactory threadFactory;
+        public DelegatingThreadFactory(ThreadFactory threadFactory) {
+            this.threadFactory = threadFactory;
+        }
+        @Override
+        public Thread newThread(Runnable r) {
+            final Thread thread = threadFactory.newThread(r);
+            afterThreadIsCreated(thread);
+            return thread;
+        }
+        protected abstract void afterThreadIsCreated(Thread thread);
     }
 
     @Override
