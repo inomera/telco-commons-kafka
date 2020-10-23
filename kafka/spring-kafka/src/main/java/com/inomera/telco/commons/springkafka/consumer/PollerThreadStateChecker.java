@@ -21,6 +21,10 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
     private final ConsumerThreadStore threadStore;
     private final PollerThreadNotifier pollerThreadNotifier;
 
+    public PollerThreadStateChecker(ConsumerThreadStore threadStore, Properties pollerThreadProperties) {
+        this(threadStore, new DefaultPollerThreadNotifier(), pollerThreadProperties);
+    }
+
     public PollerThreadStateChecker(ConsumerThreadStore threadStore, PollerThreadNotifier pollerThreadNotifier, Properties pollerThreadProperties) {
         this.threadStore = threadStore;
         this.pollerThreadNotifier = pollerThreadNotifier;
@@ -33,22 +37,7 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
 
         final int initialDelay = NumberUtils.toInt(pollerThreadProperties.getProperty("poller.thread.checker.initialDelaySec"), 30);
         final int retryInterval = NumberUtils.toInt(pollerThreadProperties.getProperty("poller.thread.checker.retryAsSec"), 30);
-        executorService.scheduleAtFixedRate(() -> check(), initialDelay, retryInterval, TimeUnit.SECONDS);
-    }
-
-    public PollerThreadStateChecker(ConsumerThreadStore threadStore, Properties pollerThreadProperties) {
-        this.threadStore = threadStore;
-        this.pollerThreadNotifier = new DefaultPollerThreadNotifier();
-        final boolean checkerIsActive = BooleanUtils.toBoolean(pollerThreadProperties.getProperty("poller.thread.checker.active", "true"));
-        if (!checkerIsActive) {
-            LOG.info("Consumer Poller thread checker is not active");
-            return;
-        }
-        executorService = Executors.newScheduledThreadPool(1);
-
-        final int initialDelay = NumberUtils.toInt(pollerThreadProperties.getProperty("poller.thread.checker.initialDelaySec"), 30);
-        final int retryInterval = NumberUtils.toInt(pollerThreadProperties.getProperty("poller.thread.checker.retryAsSec"), 30);
-        executorService.scheduleAtFixedRate(() -> check(), initialDelay, retryInterval, TimeUnit.SECONDS);
+        executorService.scheduleAtFixedRate(this::check, initialDelay, retryInterval, TimeUnit.SECONDS);
     }
 
     @Override
@@ -70,8 +59,8 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
             LOG.info("PollerThreadStateChecker -> State changed!! {}", monitoringThread.toString());
             if (StringUtils.isBlank(monitoringThread.getCurrentJvmState())) {
                 LOG.warn("PollerThreadStateChecker -> Thread is dead!! {}", monitoringThread.toString());
+                threadStore.getThreads().remove(monitoringThread.getThreadId());
                 if (monitoringThread.getKafkaMessageConsumer().isAutoStartup()) {
-                    threadStore.getThreads().remove(monitoringThread.getThreadId());
                     LOG.info("PollerThreadStateChecker -> Thread is trying to start!! {}", monitoringThread.toString());
                     try {
                         monitoringThread.getKafkaMessageConsumer().start();
