@@ -19,9 +19,26 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
     private static ScheduledExecutorService executorService;
 
     private final ConsumerThreadStore threadStore;
+    private final PollerThreadNotifier pollerThreadNotifier;
+
+    public PollerThreadStateChecker(ConsumerThreadStore threadStore, PollerThreadNotifier pollerThreadNotifier, Properties pollerThreadProperties) {
+        this.threadStore = threadStore;
+        this.pollerThreadNotifier = pollerThreadNotifier;
+        final boolean checkerIsActive = BooleanUtils.toBoolean(pollerThreadProperties.getProperty("poller.thread.checker.active", "true"));
+        if (!checkerIsActive) {
+            LOG.info("Consumer Poller thread checker is not active");
+            return;
+        }
+        executorService = Executors.newScheduledThreadPool(1);
+
+        final int initialDelay = NumberUtils.toInt(pollerThreadProperties.getProperty("poller.thread.checker.initialDelaySec"), 30);
+        final int retryInterval = NumberUtils.toInt(pollerThreadProperties.getProperty("poller.thread.checker.retryAsSec"), 30);
+        executorService.scheduleAtFixedRate(() -> check(), initialDelay, retryInterval, TimeUnit.SECONDS);
+    }
 
     public PollerThreadStateChecker(ConsumerThreadStore threadStore, Properties pollerThreadProperties) {
         this.threadStore = threadStore;
+        this.pollerThreadNotifier = new DefaultPollerThreadNotifier();
         final boolean checkerIsActive = BooleanUtils.toBoolean(pollerThreadProperties.getProperty("poller.thread.checker.active", "true"));
         if (!checkerIsActive) {
             LOG.info("Consumer Poller thread checker is not active");
@@ -39,26 +56,30 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
         final Set<PollerThreadState> monitoringThreads = new LinkedHashSet<>();
         for (Map.Entry<Long, PollerThreadState> threadEntry : threadStore.getThreads().entrySet()) {
             final String currentJvmState = getJvmState(threadEntry.getKey());
-
             final PollerThreadState pollerThreadState = threadEntry.getValue();
+            pollerThreadState.setOldJvmState(pollerThreadState.getCurrentJvmState());
             pollerThreadState.setCurrentJvmState(currentJvmState);
             monitoringThreads.add(pollerThreadState);
         }
 
         for (PollerThreadState monitoringThread : monitoringThreads) {
             if (StringUtils.equals(monitoringThread.getCurrentJvmState(), monitoringThread.getOldJvmState())) {
-                LOG.info("PollerThreadStateChecker -> State is same \n {}", monitoringThread.toString());
+                LOG.debug("PollerThreadStateChecker -> State is same :: {}", monitoringThread.toString());
                 continue;
             }
-            LOG.warn("PollerThreadStateChecker -> State changed!! \n {}", monitoringThread.toString());
-            if(StringUtils.isBlank(monitoringThread.getCurrentJvmState())){
-                LOG.warn("PollerThreadStateChecker -> Thread is dead!! \n {}", monitoringThread.toString());
-                if(monitoringThread.getKafkaMessageConsumer().isAutoStartup()){
+            LOG.info("PollerThreadStateChecker -> State changed!! {}", monitoringThread.toString());
+            if (StringUtils.isBlank(monitoringThread.getCurrentJvmState())) {
+                LOG.warn("PollerThreadStateChecker -> Thread is dead!! {}", monitoringThread.toString());
+                if (monitoringThread.getKafkaMessageConsumer().isAutoStartup()) {
                     threadStore.getThreads().remove(monitoringThread.getThreadId());
-                    LOG.warn("PollerThreadStateChecker -> Thread is trying to start!! \n {}", monitoringThread.toString());
-                    monitoringThread.getKafkaMessageConsumer().start();
-                    LOG.warn("PollerThreadStateChecker -> Thread started!! \n {}", monitoringThread.toString());
-                    threadStore.getThreads().remove(monitoringThread.getThreadId());
+                    LOG.info("PollerThreadStateChecker -> Thread is trying to start!! {}", monitoringThread.toString());
+                    try {
+                        monitoringThread.getKafkaMessageConsumer().start();
+                    } catch (Exception e) {
+                        pollerThreadNotifier.alarm(monitoringThread.toString(), e);
+                        return;
+                    }
+                    LOG.info("PollerThreadStateChecker -> Thread started!! {}", monitoringThread.toString());
                 }
             }
         }

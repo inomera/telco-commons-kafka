@@ -16,6 +16,11 @@ kafka-producers:
       linger.ms=10
       metadata.max.age.ms=10000
       compression.type=lz4
+      retry.backoff.ms=50
+      request.timeout.ms=180000
+      max.block.ms=190000
+      reconnect.backoff.ms=100
+      reconnect.backoff.max.ms=9223372036854775806
 kafka-consumers:
   default:
     properties: |-

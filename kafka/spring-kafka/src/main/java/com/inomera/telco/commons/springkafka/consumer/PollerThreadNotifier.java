@@ -1,8 +1,7 @@
 package com.inomera.telco.commons.springkafka.consumer;
 
-public class PollerThreadNotifier implements ThreadNotifier {
-    @Override
-    public void alarm() {
+public interface PollerThreadNotifier {
 
-    }
+    void alarm(String alarmText);
+    void alarm(String alarmText, Exception e);
 }

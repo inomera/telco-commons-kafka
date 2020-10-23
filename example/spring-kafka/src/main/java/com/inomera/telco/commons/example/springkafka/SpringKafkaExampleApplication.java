@@ -60,7 +60,12 @@ public class SpringKafkaExampleApplication {
 
     @Bean
     public ThreadStateChecker consumerThreadStateChecker(KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties) {
-        return new PollerThreadStateChecker(consumerThreadStore(), defaultKafkaConsumerConfigurationProperties.getPollerThreadProperties());
+        return new PollerThreadStateChecker(consumerThreadStore(), pollerThreadNotifier(), defaultKafkaConsumerConfigurationProperties.getPollerThreadProperties());
+    }
+
+    @Bean
+    public PollerThreadNotifier pollerThreadNotifier(){
+        return new DefaultPollerThreadNotifier();
     }
 
     @Bean
