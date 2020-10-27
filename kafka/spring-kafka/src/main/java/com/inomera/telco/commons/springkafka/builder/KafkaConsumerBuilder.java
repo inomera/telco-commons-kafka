@@ -10,7 +10,6 @@ import com.inomera.telco.commons.springkafka.consumer.poller.DefaultConsumerPoll
 import org.apache.kafka.common.serialization.Deserializer;
 
 import java.util.*;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.regex.Pattern;
 
@@ -122,6 +121,23 @@ public class KafkaConsumerBuilder {
         return new IncrementalNamingThreadFactory(String.format(CONSUMER_POLLER_THREAD_NAME_FORMAT, groupId));
     }
 
+    private ConsumerThreadStore getOrCreateConsumerThreadStore() {
+        if (this.threadStore == null) {
+            return new NoopConsumerThreadStore();
+        }
+        return this.threadStore;
+    }
+
+    private ThreadFactory getWrappedThreadFactory(ConsumerPoller consumerPoller) {
+        final ConsumerThreadStore threadStore = getOrCreateConsumerThreadStore();
+        final ThreadFactory threadFactory = getOrCreateConsumerThreadFactory();
+        return r -> {
+            final Thread thread = threadFactory.newThread(r);
+            threadStore.put(consumerPoller, thread);
+            return thread;
+        };
+    }
+
     public KafkaMessageConsumer build() {
         Assert.hasText(groupId, "groupId is null or empty");
         Assert.notNull(offsetCommitStrategy, "offsetCommitStrategy is null");
@@ -131,9 +147,9 @@ public class KafkaConsumerBuilder {
         final KafkaConsumerProperties properties = new KafkaConsumerProperties(groupId, topics, topicPattern,
                 offsetCommitStrategy, this.properties);
 
-        final ConsumerPoller consumerPoller = new DefaultConsumerPoller(properties, getOrCreateConsumerThreadFactory(),
-                valueDeserializer, autoPartitionPause, threadStore);
-
+        final DefaultConsumerPoller consumerPoller = new DefaultConsumerPoller(properties, valueDeserializer,
+                autoPartitionPause);
+        consumerPoller.setConsumerThreadFactory(getWrappedThreadFactory(consumerPoller));
         final ConsumerInvoker invoker = consumerInvokerBuilder.build(consumerPoller, groupId);
         return new SmartKafkaMessageConsumer(consumerPoller, invoker);
     }
