@@ -3,12 +3,10 @@ package com.inomera.telco.commons.springkafka.consumer.poller;
 import com.inomera.telco.commons.lang.Assert;
 import com.inomera.telco.commons.lang.PropertyUtils;
 import com.inomera.telco.commons.lang.thread.FutureUtils;
+import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
 import com.inomera.telco.commons.lang.thread.ThreadUtils;
-import com.inomera.telco.commons.springkafka.consumer.ConsumerThreadStore;
 import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerProperties;
-import com.inomera.telco.commons.springkafka.consumer.KafkaMessageConsumer;
-import com.inomera.telco.commons.springkafka.consumer.PollerThreadState;
-import com.inomera.telco.commons.springkafka.util.HostUtils;
+import com.inomera.telco.commons.springkafka.util.InterruptUtils;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
@@ -18,10 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -36,23 +31,19 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
     private final Map<TopicPartition, OffsetAndMetadata> offsetMap = new HashMap<>(1);
 
     private final KafkaConsumerProperties kafkaConsumerProperties;
-    private final ThreadFactory consumerThreadFactory;
     private final Deserializer<?> valueDeserializer;
+    private ThreadFactory consumerThreadFactory;
     private ConsumerRecordHandler consumerRecordHandler;
     private ExecutorService executorService;
     private KafkaConsumer<String, ?> consumer;
-    private boolean autoPartitionPause;
-    private final ConsumerThreadStore threadStore;
+    private final boolean autoPartitionPause;
 
     public DefaultConsumerPoller(KafkaConsumerProperties kafkaConsumerProperties,
-                                 ThreadFactory consumerThreadFactory, Deserializer<?> valueDeserializer,
-                                 boolean autoPartitionPause,
-                                 ConsumerThreadStore threadStore) {
+                                 Deserializer<?> valueDeserializer,
+                                 boolean autoPartitionPause) {
         this.kafkaConsumerProperties = kafkaConsumerProperties;
-        this.consumerThreadFactory = consumerThreadFactory;
         this.valueDeserializer = valueDeserializer;
         this.autoPartitionPause = autoPartitionPause;
-        this.threadStore = threadStore;
     }
 
     @Override
@@ -95,6 +86,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
                             }
                         } catch (Exception e) {
                             LOGGER.error("Error processing kafka message [{}].", rec.value(), e);
+                            InterruptUtils.interruptIfInterruptedException(e);
                         }
                     }
 
@@ -137,13 +129,19 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
             if (running.get()) {
                 LOGGER.error("WakeupException occurred while running=true! " +
                         "This may be an error therefore here is the stacktrace for error {}", e.getMessage(), e);
-                throw e;
             }
         } catch (Exception e) {
             LOGGER.error("Exception exception occurred when polling or committing, message : {}",
                     e.getMessage(), e);
+            InterruptUtils.interruptIfInterruptedException(e);
         } finally {
-            consumer.close();
+            try {
+                consumer.close();
+            } catch (Exception e) {
+                LOGGER.error("Exception while closing consumer {}: {}",
+                        kafkaConsumerProperties.getGroupId(), e.getMessage(), e);
+                InterruptUtils.interruptIfInterruptedException(e);
+            }
         }
 
         closed.set(true);
@@ -197,44 +195,17 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
     }
 
     @Override
-    public void start(KafkaMessageConsumer kafkaMessageConsumer) {
+    public void start() {
         Assert.notNull(consumerRecordHandler, "ConsumerRecordHandler is null!");
         LOGGER.info("Starting consumer. group={}", kafkaConsumerProperties.getGroupId());
+        shutdownExecutorIfNotNull();
+        closeConsumerSilently();
         this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), valueDeserializer);
-        this.executorService = Executors.newCachedThreadPool(new DelegatingThreadFactory(consumerThreadFactory) {
-            @Override
-            protected void afterThreadIsCreated(Thread thread) {
-                final String hostname = HostUtils.getHostname();
-                final String hostedThreadName = hostname.concat("-").concat(thread.getName());
-                final long threadId = thread.getId();
-
-                final PollerThreadState pollerThreadState = new PollerThreadState();
-                pollerThreadState.setThreadId(threadId);
-                pollerThreadState.setHostname(hostname);
-                pollerThreadState.setThreadName(hostedThreadName);
-                pollerThreadState.setOldJvmState(thread.getState().name());
-                pollerThreadState.setCurrentJvmState(thread.getState().name());
-                pollerThreadState.setKafkaMessageConsumer(kafkaMessageConsumer);
-
-                threadStore.put(threadId, pollerThreadState);
-            }
-        });
+        final ThreadFactory threadFactory = this.consumerThreadFactory == null
+                ? new IncrementalNamingThreadFactory(kafkaConsumerProperties.getGroupId()) : this.consumerThreadFactory;
+        this.executorService = new ThreadPoolExecutor(0, 1, 0, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), threadFactory);
         executorService.submit(this);
         running.set(true);
-    }
-
-    public abstract class DelegatingThreadFactory implements ThreadFactory {
-        private final ThreadFactory threadFactory;
-        public DelegatingThreadFactory(ThreadFactory threadFactory) {
-            this.threadFactory = threadFactory;
-        }
-        @Override
-        public Thread newThread(Runnable r) {
-            final Thread thread = threadFactory.newThread(r);
-            afterThreadIsCreated(thread);
-            return thread;
-        }
-        protected abstract void afterThreadIsCreated(Thread thread);
     }
 
     @Override
@@ -249,8 +220,24 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
             ThreadUtils.sleepQuietly(500);
         } while (!closed.get());
 
-        if (executorService != null) {
-            executorService.shutdownNow();
+        shutdownExecutorIfNotNull();
+    }
+
+    private void shutdownExecutorIfNotNull() {
+        if (this.executorService != null) {
+            this.executorService.shutdownNow();
+            this.executorService = null;
+        }
+    }
+
+    private void closeConsumerSilently() {
+        if (consumer == null) {
+            return;
+        }
+        try {
+            consumer.close();
+        } catch (Exception e) {
+            LOGGER.trace("Exception in closeConsumerSilently: {}", e.getMessage(), e);
         }
     }
 
@@ -308,5 +295,14 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
     public void setConsumerRecordHandler(ConsumerRecordHandler consumerRecordHandler) {
         Assert.notNull(consumerRecordHandler, "ConsumerRecordHandler is null!");
         this.consumerRecordHandler = consumerRecordHandler;
+    }
+
+    public void setConsumerThreadFactory(ThreadFactory consumerThreadFactory) {
+        this.consumerThreadFactory = consumerThreadFactory;
+    }
+
+    @Override
+    public boolean shouldRestart() {
+        return this.running.get() && this.closed.get();
     }
 }

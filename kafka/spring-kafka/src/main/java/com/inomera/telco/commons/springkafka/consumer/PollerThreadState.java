@@ -1,5 +1,6 @@
 package com.inomera.telco.commons.springkafka.consumer;
 
+import com.inomera.telco.commons.springkafka.consumer.poller.ConsumerPoller;
 import lombok.Data;
 
 @Data
@@ -9,7 +10,7 @@ public class PollerThreadState {
     private String threadName;
     private String oldJvmState;
     private String currentJvmState;
-    private KafkaMessageConsumer kafkaMessageConsumer;
+    private ConsumerPoller consumerPoller;
 
     @Override
     public String toString() {

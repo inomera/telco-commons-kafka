@@ -10,7 +10,9 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class PollerThreadStateChecker implements ThreadStateChecker {
 
@@ -60,10 +62,10 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
             if (StringUtils.isBlank(monitoringThread.getCurrentJvmState())) {
                 LOG.warn("PollerThreadStateChecker -> Thread is dead!! {}", monitoringThread.toString());
                 threadStore.getThreads().remove(monitoringThread.getThreadId());
-                if (monitoringThread.getKafkaMessageConsumer().isAutoStartup()) {
+                if (monitoringThread.getConsumerPoller().shouldRestart()) {
                     LOG.info("PollerThreadStateChecker -> Thread is trying to start!! {}", monitoringThread.toString());
                     try {
-                        monitoringThread.getKafkaMessageConsumer().start();
+                        monitoringThread.getConsumerPoller().start();
                     } catch (Exception e) {
                         pollerThreadNotifier.alarm(monitoringThread.toString(), e);
                         return;

@@ -38,5 +38,5 @@ kafka-consumers:
     offset-commit-strategy: AT_MOST_ONCE_BULK
     pollerThreadProperties: |-
       poller.thread.checker.active=true
-      poller.thread.checker.initialDelaySec=10
-      poller.thread.checker.retryAsSec=10
+      poller.thread.checker.initialDelaySec=5
+      poller.thread.checker.retryAsSec=5
