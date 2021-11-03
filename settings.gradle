@@ -11,3 +11,6 @@ project(':kafka-kryo').projectDir = new File('kafka/kryo')
 
 include ':kafka-smile'
 project(':kafka-smile').projectDir = new File('kafka/smile')
+
+include ':kafka-protobuf'
+project(':kafka-protobuf').projectDir = new File('kafka/protobuf')
