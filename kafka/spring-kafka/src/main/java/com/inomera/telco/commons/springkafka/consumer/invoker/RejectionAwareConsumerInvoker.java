@@ -35,8 +35,8 @@ public class RejectionAwareConsumerInvoker implements ConsumerInvoker {
     }
 
     @Override
-    public Future<ConsumerRecord<String, ?>> invoke(ConsumerRecord<String, ?> record) {
-        final FutureTask<ConsumerRecord<String, ?>> futureTask = methodInvoker.addRecord(record);
+    public Future<InvokerResult> invoke(ConsumerRecord<String, ?> record) {
+        final FutureTask<InvokerResult> futureTask = methodInvoker.addRecord(record);
         try {
             final ThreadPoolExecutor executor = executorStrategy.get(record);
             executor.submit(futureTask);

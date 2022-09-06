@@ -1,6 +1,7 @@
 package com.inomera.telco.commons.example.springkafka;
 
 import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedBeautifullyMessage;
+import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedConsumerMessage;
 import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedMessage;
 import com.inomera.telco.commons.lang.thread.ThreadUtils;
 import com.inomera.telco.commons.example.springkafka.msg.UnListenedMessage;
@@ -28,13 +29,15 @@ public class SomeSender {
     @Scheduled(fixedDelay = 1000)
     public void publishRandomText() {
         LOG.debug("Sending event");
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 8; i++) {
             ThreadUtils.sleepQuietly(3000);
             final int value = atomicInteger.incrementAndGet();
             if (value % 3 == 0) {
                 kafkaMessagePublisher.send("mouse-event.click", new SomethingHappenedMessage());
             } else if (value % 3 == 1) {
                 kafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedBeautifullyMessage());
+            } else if (value % 3 == 2) {
+                kafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedConsumerMessage());
             } else {
                 kafkaMessagePublisher.send("example.unlistened-topic", new UnListenedMessage());
             }

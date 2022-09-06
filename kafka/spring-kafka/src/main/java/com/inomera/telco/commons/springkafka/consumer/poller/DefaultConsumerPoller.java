@@ -5,7 +5,9 @@ import com.inomera.telco.commons.lang.PropertyUtils;
 import com.inomera.telco.commons.lang.thread.FutureUtils;
 import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
 import com.inomera.telco.commons.lang.thread.ThreadUtils;
+import com.inomera.telco.commons.springkafka.annotation.KafkaListener;
 import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerProperties;
+import com.inomera.telco.commons.springkafka.consumer.invoker.InvokerResult;
 import com.inomera.telco.commons.springkafka.util.InterruptUtils;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
@@ -23,11 +25,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author Serdar Kuzucu
  */
 public class DefaultConsumerPoller implements ConsumerPoller, Runnable, ConsumerRebalanceListener {
-    private static final Logger LOGGER = LoggerFactory.getLogger(DefaultConsumerPoller.class);
+    private static final Logger LOG = LoggerFactory.getLogger(DefaultConsumerPoller.class);
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final Map<TopicPartition, List<Future<ConsumerRecord<String, ?>>>> inProgressMessages = new HashMap<>();
+    private final Map<TopicPartition, List<Future<InvokerResult>>> inProgressMessages = new HashMap<>();
     private final Map<TopicPartition, OffsetAndMetadata> offsetMap = new HashMap<>(1);
 
     private final KafkaConsumerProperties kafkaConsumerProperties;
@@ -55,7 +57,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
                 consumer.subscribe(kafkaConsumerProperties.getTopics(), this);
             }
 
-            List<Future<ConsumerRecord<String, ?>>> partitionFutures;
+            List<Future<InvokerResult>> partitionFutures;
 
             final Collection<TopicPartition> toBePause = new HashSet<>();
             final Collection<TopicPartition> toBeResume = new HashSet<>();
@@ -85,13 +87,13 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
                                 toBePause.add(new TopicPartition(rec.topic(), rec.partition()));
                             }
                         } catch (Exception e) {
-                            LOGGER.error("Error processing kafka message [{}].", rec.value(), e);
+                            LOG.error("Error processing kafka message [{}].", rec.value(), e);
                             InterruptUtils.interruptIfInterruptedException(e);
                         }
                     }
 
                     // do not read any records on the next poll cycle
-                    LOGGER.debug("PAUSED-> {}", toBePause);
+                    LOG.debug("PAUSED-> {}", toBePause);
                     consumer.pause(toBePause);
                 } else {
                     // increase poll wait time until 3sec
@@ -100,45 +102,53 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 
                 toBeResume.clear();
 
-                for (Map.Entry<TopicPartition, List<Future<ConsumerRecord<String, ?>>>> e : inProgressMessages.entrySet()) {
-                    if (!e.getValue().isEmpty()) {
-                        final ConsumerRecord<String, ?> lastCompleted = getLastCompletedRecord(e.getValue());
-
+                final Iterator<Map.Entry<TopicPartition, List<Future<InvokerResult>>>> messageIterator = inProgressMessages.entrySet().iterator();
+                while (messageIterator.hasNext()) {
+                    final Map.Entry<TopicPartition, List<Future<InvokerResult>>> messageEntry = messageIterator.next();
+                    final List<Future<InvokerResult>> messageEntryValue = messageEntry.getValue();
+                    if (!messageEntryValue.isEmpty()) {
+                        final InvokerResult lastCompleted = getLastCompletedRecord(messageEntryValue);
+                        if (lastCompleted != null) {
+                            final KafkaListener kafkaListener = lastCompleted.getKafkaListener();
+                            if (kafkaListener != null && kafkaListener.retry()) {
+                                LOG.warn("message remove without commit for processing the topic : {}, if the consumer re-start or re-subscribe another consumer in consumer group, try to process", messageEntry.getKey().topic());
+                                messageIterator.remove();
+                            }
+                        }
                         if (lastCompleted != null && kafkaConsumerProperties.isAtLeastOnceSingle()) {
-                            commitOffset(lastCompleted);
+                            commitOffset(lastCompleted.getRecord());
                         }
 
-                        if (e.getValue().isEmpty()) {
+                        if (messageEntryValue.isEmpty()) {
                             if (kafkaConsumerProperties.isAtLeastOnceBulk()) {
                                 if (lastCompleted != null) {
-                                    commitOffset(lastCompleted);
+                                    commitOffset(lastCompleted.getRecord());
                                 }
                             }
-                            toBeResume.add(e.getKey());
+                            toBeResume.add(messageEntry.getKey());
                         }
                     }
                 }
-
                 if (!toBeResume.isEmpty()) {
                     consumer.resume(toBeResume);
-                    LOGGER.debug("RESUMED-> {}", toBePause);
+                    LOG.debug("RESUMED-> {}", toBePause);
                 }
             }
         } catch (WakeupException e) {
-            LOGGER.info("WakeupException is handled. Shutting down the consumer.");
+            LOG.info("WakeupException is handled. Shutting down the consumer.");
             if (running.get()) {
-                LOGGER.error("WakeupException occurred while running=true! " +
+                LOG.error("WakeupException occurred while running=true! " +
                         "This may be an error therefore here is the stacktrace for error {}", e.getMessage(), e);
             }
         } catch (Exception e) {
-            LOGGER.error("Exception exception occurred when polling or committing, message : {}",
+            LOG.error("Exception occurred when polling or committing, message : {}",
                     e.getMessage(), e);
             InterruptUtils.interruptIfInterruptedException(e);
         } finally {
             try {
                 consumer.close();
             } catch (Exception e) {
-                LOGGER.error("Exception while closing consumer {}: {}",
+                LOG.error("Exception while closing consumer {}: {}",
                         kafkaConsumerProperties.getGroupId(), e.getMessage(), e);
                 InterruptUtils.interruptIfInterruptedException(e);
             }
@@ -147,18 +157,18 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
         closed.set(true);
     }
 
-    private ConsumerRecord<String, ?> getLastCompletedRecord(List<Future<ConsumerRecord<String, ?>>> invocations) {
-        ConsumerRecord<String, ?> lastCompleted = null;
-        ConsumerRecord<String, ?> crTemp;
+    private InvokerResult getLastCompletedRecord(List<Future<InvokerResult>> invocations) {
+        InvokerResult lastCompleted = null;
+        InvokerResult crTemp;
 
-        final Iterator<Future<ConsumerRecord<String, ?>>> iterator = invocations.iterator();
+        final Iterator<Future<InvokerResult>> iterator = invocations.iterator();
 
         while (iterator.hasNext()) {
-            final Future<ConsumerRecord<String, ?>> nextRecord = iterator.next();
+            final Future<InvokerResult> nextRecord = iterator.next();
             if (nextRecord.isDone()) {
                 if (lastCompleted == null) {
                     lastCompleted = FutureUtils.getUnchecked(nextRecord);
-                } else if (lastCompleted.offset() < (crTemp = FutureUtils.getUnchecked(nextRecord)).offset()) {
+                } else if (lastCompleted.getRecord().offset() < (crTemp = FutureUtils.getUnchecked(nextRecord)).getRecord().offset()) {
                     lastCompleted = crTemp;
                 }
                 iterator.remove();
@@ -175,7 +185,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
             consumer.commitSync();
             return true;
         } catch (CommitFailedException e) {
-            LOGGER.info("Committing last offsets failed for {}.", kafkaConsumerProperties.getClientId(), e);
+            LOG.info("Committing last offsets failed for {}.", kafkaConsumerProperties.getClientId(), e);
             return false;
         }
     }
@@ -188,7 +198,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
             consumer.commitSync(offsetMap);
             return true;
         } catch (CommitFailedException e) {
-            LOGGER.error("Offset commit failed for {}. offset={}, request={}",
+            LOG.error("Offset commit failed for {}. offset={}, request={}",
                     kafkaConsumerProperties.getClientId(), offsetMap, rec.value(), e);
             return false;
         }
@@ -197,7 +207,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
     @Override
     public void start() {
         Assert.notNull(consumerRecordHandler, "ConsumerRecordHandler is null!");
-        LOGGER.info("Starting consumer. group={}", kafkaConsumerProperties.getGroupId());
+        LOG.info("Starting consumer. group={}", kafkaConsumerProperties.getGroupId());
         shutdownExecutorIfNotNull();
         closeConsumerSilently();
         this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), valueDeserializer);
@@ -237,7 +247,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
         try {
             consumer.close();
         } catch (Exception e) {
-            LOGGER.trace("Exception in closeConsumerSilently: {}", e.getMessage(), e);
+            LOG.trace("Exception in closeConsumerSilently: {}", e.getMessage(), e);
         }
     }
 
@@ -268,7 +278,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
             inProgressMessages.put(tp, new ArrayList<>());
         }
 
-        LOGGER.info("ASSIGNED-> {}", partitions);
+        LOG.info("ASSIGNED-> {}", partitions);
     }
 
     @Override
@@ -278,18 +288,18 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
         }
 
         for (TopicPartition tpRevoked : partitionsRevoked) {
-            final List<Future<ConsumerRecord<String, ?>>> inProgressTasks = inProgressMessages.get(tpRevoked);
+            final List<Future<InvokerResult>> inProgressTasks = inProgressMessages.get(tpRevoked);
             if (inProgressTasks != null && !inProgressTasks.isEmpty()) {
                 for (int i = inProgressTasks.size() - 1; i >= 0; --i) {
-                    final Future<ConsumerRecord<String, ?>> f = inProgressTasks.get(i);
+                    final Future<InvokerResult> f = inProgressTasks.get(i);
                     if (f.isDone()) {
-                        commitOffset(FutureUtils.getUnchecked(f));
+                        commitOffset(FutureUtils.getUnchecked(f).getRecord());
                         break;
                     }
                 }
             }
         }
-        LOGGER.info("REVOKED-> {}", partitionsRevoked);
+        LOG.info("REVOKED-> {}", partitionsRevoked);
     }
 
     public void setConsumerRecordHandler(ConsumerRecordHandler consumerRecordHandler) {

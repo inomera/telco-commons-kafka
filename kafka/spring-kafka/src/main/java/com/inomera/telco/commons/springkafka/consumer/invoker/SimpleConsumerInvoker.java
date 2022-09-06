@@ -27,8 +27,8 @@ public class SimpleConsumerInvoker implements ConsumerInvoker {
     }
 
     @Override
-    public Future<ConsumerRecord<String, ?>> invoke(ConsumerRecord<String, ?> record) {
-        final FutureTask<ConsumerRecord<String, ?>> futureTask = methodInvoker.addRecord(record);
+    public Future<InvokerResult> invoke(ConsumerRecord<String, ?> record) {
+        final FutureTask<InvokerResult> futureTask = methodInvoker.addRecord(record);
         final ThreadPoolExecutor executor = executorStrategy.get(record);
         executor.submit(futureTask);
         return futureTask;

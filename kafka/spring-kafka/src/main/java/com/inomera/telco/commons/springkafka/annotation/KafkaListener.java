@@ -13,4 +13,10 @@ public @interface KafkaListener {
     String groupId() default "";
 
     boolean includeSubclasses() default false;
+
+    /*
+    true : to remove the message before send commit ack to kafka server if there is any failure case occurred in KafkaListener method, so that the message is waiting to kafka topic for processing. The consumer should be restarted or kafka servers are restarted.
+    false : to handle failure case in happened, and send commit ack to kafka server.
+     */
+    boolean retry() default false;
 }
