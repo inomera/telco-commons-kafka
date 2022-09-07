@@ -29,7 +29,7 @@ public class SomeSender {
     @Scheduled(fixedDelay = 1000)
     public void publishRandomText() {
         LOG.debug("Sending event");
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 20; i++) {
             ThreadUtils.sleepQuietly(3000);
             final int value = atomicInteger.incrementAndGet();
             if (value % 3 == 0) {

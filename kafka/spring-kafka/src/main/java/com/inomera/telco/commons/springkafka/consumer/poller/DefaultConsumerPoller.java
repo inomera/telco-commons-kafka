@@ -109,11 +109,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
                     if (!messageEntryValue.isEmpty()) {
                         final InvokerResult lastCompleted = getLastCompletedRecord(messageEntryValue);
                         if (lastCompleted != null) {
-                            final KafkaListener kafkaListener = lastCompleted.getKafkaListener();
-                            if (kafkaListener != null && kafkaListener.retry()) {
-                                LOG.warn("message remove without commit for processing the topic : {}, if the consumer re-start or re-subscribe another consumer in consumer group, try to process", messageEntry.getKey().topic());
-                                messageIterator.remove();
-                            }
+                            checkAndRemoveMessageWithoutCommit(messageIterator, lastCompleted, messageEntry.getKey().topic());
                         }
                         if (lastCompleted != null && kafkaConsumerProperties.isAtLeastOnceSingle()) {
                             commitOffset(lastCompleted.getRecord());
@@ -155,6 +151,14 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
         }
 
         closed.set(true);
+    }
+
+    private void checkAndRemoveMessageWithoutCommit(Iterator<Map.Entry<TopicPartition, List<Future<InvokerResult>>>> messageIterator, InvokerResult lastCompleted, String topic) {
+        final KafkaListener kafkaListener = lastCompleted.getKafkaListener();
+        if (kafkaListener != null && kafkaListener.retry()) {
+            LOG.warn("message remove without commit for processing the topic : {}, if the consumer re-start or re-subscribe another consumer in consumer group, try to process", topic);
+            messageIterator.remove();
+        }
     }
 
     private InvokerResult getLastCompletedRecord(List<Future<InvokerResult>> invocations) {
@@ -283,7 +287,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 
     @Override
     public void onPartitionsRevoked(Collection<TopicPartition> partitionsRevoked) {
-        if (!(kafkaConsumerProperties.isAtLeastOnce())) {
+        if (!(kafkaConsumerProperties.isAtLeastOnce() || kafkaConsumerProperties.isAtLeastOnceBulk())) {
             return;
         }
 

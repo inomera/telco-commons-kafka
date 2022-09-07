@@ -30,7 +30,7 @@ public class ListenerMethod {
             listenerMethod.invoke(listenerInstance, message);
             return null;
         } catch (InvocationTargetException ite) {
-            LOG.debug("InvocationTargetException listener method {} with message {}, topic {}", this, message, topic, ite);
+            LOG.error("InvocationTargetException listener method {} with message {}, topic {}", this, message, topic, ite);
             return getKafkaListener();
         } catch (Exception e) {
             LOG.error("Error invoking listener method {} with message {}", this, message, e);
@@ -42,12 +42,17 @@ public class ListenerMethod {
         final String key = listenerInstance.getClass().getName() + "-" + listenerMethod.getName();
         KafkaListener annotation = RETRYABLE_CONSUMER.get(key);
         if (annotation == null) {
-            annotation = AnnotationUtils.findAnnotation(listenerMethod, KafkaListener.class);
-            if (annotation == null) {
-                return null;
-            }
-            RETRYABLE_CONSUMER.putIfAbsent(key, annotation);
+            return getAndPutKafkaListener(key);
         }
+        return annotation;
+    }
+
+    private KafkaListener getAndPutKafkaListener(String key) {
+        final KafkaListener annotation = AnnotationUtils.findAnnotation(listenerMethod, KafkaListener.class);
+        if (annotation == null) {
+            return null;
+        }
+        RETRYABLE_CONSUMER.putIfAbsent(key, annotation);
         return annotation;
     }
 
