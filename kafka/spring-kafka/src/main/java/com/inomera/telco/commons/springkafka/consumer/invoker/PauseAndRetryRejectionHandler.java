@@ -28,7 +28,7 @@ public class PauseAndRetryRejectionHandler implements RejectionHandler {
     private TimeUnit retryPoolKeepAliveTimeUnit = TimeUnit.MINUTES;
 
     @Override
-    public void handleReject(final ConsumerRecord<String, ?> record, final FutureTask<ConsumerRecord<String, ?>> futureTask) {
+    public void handleReject(final ConsumerRecord<String, ?> record, final FutureTask<InvokerResult> futureTask) {
         final TopicPartition topicPartition = new TopicPartition(record.topic(), record.partition());
         LOG.info("handleReject::rejected execution of {}", topicPartition);
 
@@ -67,7 +67,7 @@ public class PauseAndRetryRejectionHandler implements RejectionHandler {
 
     @RequiredArgsConstructor
     private class RetryTask implements Runnable {
-        private final FutureTask<ConsumerRecord<String, ?>> futureTask;
+        private final FutureTask<InvokerResult> futureTask;
         private final ConsumerRecord<String, ?> record;
         private long initializationTimestamp = System.currentTimeMillis();
 

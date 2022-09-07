@@ -8,7 +8,7 @@ import java.util.concurrent.FutureTask;
  * @author Serdar Kuzucu
  */
 public interface RejectionHandler {
-    void handleReject(final ConsumerRecord<String, ?> record, final FutureTask<ConsumerRecord<String, ?>> futureTask);
+    void handleReject(final ConsumerRecord<String, ?> record, final FutureTask<InvokerResult> futureTask);
 
     void start();
 

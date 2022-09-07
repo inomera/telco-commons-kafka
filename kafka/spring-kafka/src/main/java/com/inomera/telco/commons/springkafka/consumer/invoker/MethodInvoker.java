@@ -1,5 +1,6 @@
 package com.inomera.telco.commons.springkafka.consumer.invoker;
 
+import com.inomera.telco.commons.springkafka.annotation.KafkaListener;
 import com.inomera.telco.commons.springkafka.consumer.invoker.fault.ListenerMethodNotFoundHandler;
 import com.inomera.telco.commons.springkafka.consumer.invoker.fault.LoggingListenerMethodNotFoundHandler;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -13,7 +14,7 @@ import java.util.concurrent.FutureTask;
  * @author Serdar Kuzucu
  */
 public class MethodInvoker {
-    private static final Logger LOGGER = LoggerFactory.getLogger(MethodInvoker.class);
+    private static final Logger LOG = LoggerFactory.getLogger(MethodInvoker.class);
 
     private final String groupId;
     private final ListenerMethodRegistry listenerMethodRegistry;
@@ -36,36 +37,41 @@ public class MethodInvoker {
         this.listenerMethodNotFoundHandler = listenerMethodNotFoundHandler;
     }
 
-    public FutureTask<ConsumerRecord<String, ?>> addRecord(final ConsumerRecord<String, ?> record) {
+    public FutureTask<InvokerResult> addRecord(final ConsumerRecord<String, ?> record) {
+        final InvokerResult invokerResult = new InvokerResult(record);
         return new FutureTask<>(() -> {
             try {
                 final Object msg = record.value();
                 if (msg == null) {
-                    LOGGER.info("Null received from topic: {}", record.topic());
+                    LOG.info("Null received from topic: {}", record.topic());
                     return;
                 }
 
                 final long invokerMethodCount = listenerMethodRegistry
                         .getListenerMethods(groupId, record.topic(), msg.getClass())
-                        .peek(listenerMethod -> invokeListenerMethod(listenerMethod, msg))
+                        .peek(listenerMethod -> {
+                            final KafkaListener kafkaListener = invokeListenerMethod(listenerMethod, msg, record.topic());
+                            invokerResult.setKafkaListener(kafkaListener);
+                        })
                         .count();
 
-                LOGGER.debug("Invoked {} listener methods", invokerMethodCount);
+                LOG.debug("Invoked {} listener methods", invokerMethodCount);
                 if (invokerMethodCount == 0L) {
                     invokeListenerMethodNotFoundHandler(record);
                 }
             } catch (Exception e) {
-                LOGGER.error("Error processing kafka message [{}].", record.value(), e);
+                LOG.error("Error processing kafka message [{}].", record.value(), e);
             }
-        }, record);
+        }, invokerResult);
     }
 
-    private void invokeListenerMethod(ListenerMethod listenerMethod, Object message) {
+    private KafkaListener invokeListenerMethod(ListenerMethod listenerMethod, Object message, String topic) {
         try {
             invokeBeforeInterceptors(message);
-            listenerMethod.invoke(message);
+            return listenerMethod.invoke(message, topic);
         } catch (Exception e) {
-            LOGGER.error("Error processing kafka message [{}]", message, e);
+            LOG.error("Error processing kafka message [{}]", message, e);
+            return null;
         } finally {
             invokeAfterInterceptors(message);
         }
@@ -84,7 +90,7 @@ public class MethodInvoker {
             listenerMethodNotFoundHandler.onListenerMethodNotFound(groupId, record);
         } catch (Exception e) {
             // Swallow the exception, nothing should be thrown from here.
-            LOGGER.error("Error calling listenerMethodNotFoundHandler: {}", e.getMessage(), e);
+            LOG.error("Error calling listenerMethodNotFoundHandler: {}", e.getMessage(), e);
         }
     }
 }

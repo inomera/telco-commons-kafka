@@ -31,11 +31,11 @@ kafka-consumers:
       heartbeat.interval.ms=10000
       request.timeout.ms=31000
       session.timeout.ms=30000
-      max.poll.records=10
+      max.poll.records=100
       reconnect.backoff.ms=5000
       reconnect.backoff.max.ms=9223372036854775806
     number-of-invoker-threads: 2
-    offset-commit-strategy: AT_MOST_ONCE_BULK
+    offset-commit-strategy: AT_LEAST_ONCE_BULK
     pollerThreadProperties: |-
       poller.thread.checker.active=true
       poller.thread.checker.initialDelaySec=5

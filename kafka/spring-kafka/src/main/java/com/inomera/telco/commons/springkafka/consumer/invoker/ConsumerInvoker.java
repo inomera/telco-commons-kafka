@@ -12,5 +12,5 @@ public interface ConsumerInvoker {
 
     void stop();
 
-    Future<ConsumerRecord<String, ?>> invoke(ConsumerRecord<String, ?> record);
+    Future<InvokerResult> invoke(ConsumerRecord<String, ?> record);
 }
