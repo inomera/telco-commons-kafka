@@ -28,7 +28,7 @@ public class SomeSender {
 
     @Scheduled(fixedDelay = 1000)
     public void publishRandomText() {
-        LOG.debug("Sending event");
+        LOG.info("Sending event");
         for (int i = 0; i < 20; i++) {
             ThreadUtils.sleepQuietly(3000);
             final int value = atomicInteger.incrementAndGet();
@@ -42,6 +42,6 @@ public class SomeSender {
                 kafkaMessagePublisher.send("example.unlistened-topic", new UnListenedMessage());
             }
         }
-        LOG.debug("Sent event");
+        LOG.info("Sent event");
     }
 }

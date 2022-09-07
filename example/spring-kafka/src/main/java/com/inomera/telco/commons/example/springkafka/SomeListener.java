@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 public class SomeListener {
     private static final Logger LOG = LoggerFactory.getLogger(SomeListener.class);
 
-    @KafkaListener(groupId = "event-logger", topics = {"mouse-event.click", "mouse-event.dblclick"}, includeSubclasses = true, retry = true)
+    @KafkaListener(groupId = "event-logger", topics = {"mouse-event.click", "mouse-event.dblclick"}, includeSubclasses = true, retry = false)
     public void handle(Message message) {
         LOG.info("handle : message={}", message.getClass().getSimpleName());
         ThreadUtils.sleepQuietly(300);

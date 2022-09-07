@@ -30,7 +30,7 @@ public class ListenerMethod {
             listenerMethod.invoke(listenerInstance, message);
             return null;
         } catch (InvocationTargetException ite) {
-            LOG.debug("InvocationTargetException listener method {} with message {}, topic {}", this, message, topic, ite);
+            LOG.error("InvocationTargetException listener method : {} with message : {}, topic : {}", this, message, topic, ite.getTargetException());
             return getKafkaListener();
         } catch (Exception e) {
             LOG.error("Error invoking listener method {} with message {}", this, message, e);
