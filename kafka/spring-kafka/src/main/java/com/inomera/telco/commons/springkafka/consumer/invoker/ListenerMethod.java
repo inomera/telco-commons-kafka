@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class ListenerMethod {
     private static final Logger LOG = LoggerFactory.getLogger(ListenerMethod.class);
-    private final ConcurrentMap<String, KafkaListener> RETRYABLE_CONSUMER = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, KafkaListener> RETRYABLE_CONSUMER_MESSAGES = new ConcurrentHashMap<>();
     private final Object listenerInstance;
     private final Method listenerMethod;
 
@@ -30,7 +30,7 @@ public class ListenerMethod {
             listenerMethod.invoke(listenerInstance, message);
             return null;
         } catch (InvocationTargetException ite) {
-            LOG.error("InvocationTargetException listener method {} with message {}, topic {}", this, message, topic, ite);
+            LOG.debug("InvocationTargetException listener method {} with message {}, topic {}", this, message, topic, ite);
             return getKafkaListener();
         } catch (Exception e) {
             LOG.error("Error invoking listener method {} with message {}", this, message, e);
@@ -40,7 +40,7 @@ public class ListenerMethod {
 
     private KafkaListener getKafkaListener() {
         final String key = listenerInstance.getClass().getName() + "-" + listenerMethod.getName();
-        KafkaListener annotation = RETRYABLE_CONSUMER.get(key);
+        KafkaListener annotation = RETRYABLE_CONSUMER_MESSAGES.get(key);
         if (annotation == null) {
             return getAndPutKafkaListener(key);
         }
@@ -52,7 +52,7 @@ public class ListenerMethod {
         if (annotation == null) {
             return null;
         }
-        RETRYABLE_CONSUMER.putIfAbsent(key, annotation);
+        RETRYABLE_CONSUMER_MESSAGES.putIfAbsent(key, annotation);
         return annotation;
     }
 
