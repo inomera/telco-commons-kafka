@@ -93,4 +93,23 @@ public class ConsumerInvokerBuilder {
                 executorStrategy);
         return new RejectionAwareConsumerInvoker(methodInvoker, executorStrategy, rejectionHandler);
     }
+
+    BulkConsumerInvoker buildBulk(ConsumerPoller consumerPoller, String groupId) {
+        final MethodInvoker methodInvoker = buildMethodInvoker(groupId);
+
+        if (orderGuarantee) {
+            final ExecutorStrategy executorStrategy = Optional.ofNullable(orderedProcessingStrategyBuilder)
+                    .orElse(new OrderedProcessingStrategyBuilder(this))
+                    .build(groupId);
+            return new BulkSimpleConsumerInvoker(methodInvoker, executorStrategy);
+        }
+
+        final ExecutorStrategy executorStrategy = Optional.ofNullable(unorderedProcessingStrategyBuilder)
+                .orElse(new UnorderedProcessingStrategyBuilder(this))
+                .build(groupId);
+
+        final PauseAndRetryRejectionHandler rejectionHandler = new PauseAndRetryRejectionHandler(consumerPoller,
+                executorStrategy);
+        return new BulkRejectionAwareConsumerInvoker(methodInvoker, executorStrategy, rejectionHandler);
+    }
 }

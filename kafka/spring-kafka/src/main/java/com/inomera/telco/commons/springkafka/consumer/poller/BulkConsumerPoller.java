@@ -1,15 +1,17 @@
 package com.inomera.telco.commons.springkafka.consumer.poller;
 
 import com.inomera.telco.commons.lang.Assert;
-import com.inomera.telco.commons.lang.PropertyUtils;
 import com.inomera.telco.commons.lang.thread.FutureUtils;
 import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
 import com.inomera.telco.commons.lang.thread.ThreadUtils;
-import com.inomera.telco.commons.springkafka.annotation.KafkaListener;
 import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerProperties;
 import com.inomera.telco.commons.springkafka.consumer.invoker.InvokerResult;
 import com.inomera.telco.commons.springkafka.util.InterruptUtils;
-import org.apache.kafka.clients.consumer.*;
+import org.apache.kafka.clients.consumer.CommitFailedException;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.Deserializer;
@@ -17,59 +19,56 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
-/**
- * @author Serdar Kuzucu
- */
-public class DefaultConsumerPoller implements ConsumerPoller, Runnable, ConsumerRebalanceListener {
-    private static final Logger LOG = LoggerFactory.getLogger(DefaultConsumerPoller.class);
+
+public class BulkConsumerPoller extends DefaultConsumerPoller {
+    private static final Logger LOG = LoggerFactory.getLogger(BulkConsumerPoller.class);
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Map<TopicPartition, List<Future<InvokerResult>>> inProgressMessages = new HashMap<>();
     private final Map<TopicPartition, OffsetAndMetadata> offsetMap = new HashMap<>(1);
 
-    private final KafkaConsumerProperties kafkaConsumerProperties;
-    private final Deserializer<?> valueDeserializer;
-    private final boolean autoPartitionPause;
     private ThreadFactory consumerThreadFactory;
-    private ConsumerRecordHandler consumerRecordHandler;
+    private BulkConsumerRecordHandler consumerRecordHandler;
     private ExecutorService executorService;
     private KafkaConsumer<String, ?> consumer;
 
-    public DefaultConsumerPoller(KafkaConsumerProperties kafkaConsumerProperties,
-				 Deserializer<?> valueDeserializer,
-				 boolean autoPartitionPause) {
-	this.kafkaConsumerProperties = kafkaConsumerProperties;
-	this.valueDeserializer = valueDeserializer;
-	this.autoPartitionPause = autoPartitionPause;
-    }
-
-    public KafkaConsumerProperties getKafkaConsumerProperties() {
-	return kafkaConsumerProperties;
-    }
-
-    public Deserializer<?> getValueDeserializer() {
-	return valueDeserializer;
-    }
-
-    public boolean isAutoPartitionPause() {
-	return autoPartitionPause;
+    public BulkConsumerPoller(KafkaConsumerProperties kafkaConsumerProperties,
+			      Deserializer<?> valueDeserializer,
+			      boolean autoPartitionPause) {
+	super(kafkaConsumerProperties, valueDeserializer, autoPartitionPause);
     }
 
     @Override
     public void run() {
 	try {
+	    final KafkaConsumerProperties kafkaConsumerProperties = getKafkaConsumerProperties();
 	    if (kafkaConsumerProperties.hasPatternBasedTopic()) {
 		consumer.subscribe(kafkaConsumerProperties.getTopicPattern(), this);
 	    } else {
 		consumer.subscribe(kafkaConsumerProperties.getTopics(), this);
 	    }
 
-	    List<Future<InvokerResult>> partitionFutures;
+	    List<Future<InvokerResult>> partitionFutures = null;
 
 	    final Collection<TopicPartition> toBePause = new HashSet<>();
 	    final Collection<TopicPartition> toBeResume = new HashSet<>();
@@ -86,6 +85,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 		    }
 
 		    toBePause.clear();
+		    Map<TopicPartition, Set<ConsumerRecord<String, ?>>> tpRecordsMap = new HashMap<>();
 		    for (ConsumerRecord<String, ?> rec : records) {
 			if (kafkaConsumerProperties.isAtMostOnceSingle() && !commitOffset(rec)) {
 			    continue pollLoop;
@@ -93,15 +93,23 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 
 			tp = new TopicPartition(rec.topic(), rec.partition());
 			partitionFutures = inProgressMessages.get(tp);
+			final List<? extends ConsumerRecord<String, ?>> tpRecords = records.records(tp);
 			try {
-			    partitionFutures.add(consumerRecordHandler.handle(rec));
-			    if (autoPartitionPause) {
+			    final Set<ConsumerRecord<String, ?>> consumerRecords = tpRecordsMap.getOrDefault(tp, new LinkedHashSet<>());
+			    final Set<ConsumerRecord<String, ?>> tpRecs = tpRecords.stream().collect(Collectors.toSet());
+			    tpRecs.addAll(consumerRecords);
+			    tpRecordsMap.put(tp, tpRecs);
+			    if (isAutoPartitionPause()) {
 				toBePause.add(new TopicPartition(rec.topic(), rec.partition()));
 			    }
 			} catch (Exception e) {
 			    LOG.error("Error processing kafka message [{}].", rec.value(), e);
 			    InterruptUtils.interruptIfInterruptedException(e);
 			}
+		    }
+
+		    for (Set<ConsumerRecord<String, ?>> value : tpRecordsMap.values()) {
+			partitionFutures.add(consumerRecordHandler.handle(value));
 		    }
 
 		    // do not read any records on the next poll cycle
@@ -143,7 +151,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 		}
 	    }
 	} catch (WakeupException e) {
-	    LOG.info("WakeupException is handled. Shutting down the consumer.");
+	    LOG.info("WakeupException is handled. Shutting down the bulk consumer.");
 	    if (running.get()) {
 		LOG.error("WakeupException occurred while running=true! " +
 			"This may be an error therefore here is the stacktrace for error {}", e.getMessage(), e);
@@ -156,8 +164,8 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 	    try {
 		consumer.close();
 	    } catch (Exception e) {
-		LOG.error("Exception while closing consumer {}: {}",
-			kafkaConsumerProperties.getGroupId(), e.getMessage(), e);
+		LOG.error("Exception while closing bulk consumer {}: {}",
+			getKafkaConsumerProperties().getGroupId(), e.getMessage(), e);
 		InterruptUtils.interruptIfInterruptedException(e);
 	    }
 	}
@@ -165,56 +173,12 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 	closed.set(true);
     }
 
-    protected void checkAndThrowRetryException(InvokerResult lastCompleted) {
-	final KafkaListener kafkaListener = lastCompleted.getKafkaListener();
-	if (kafkaListener == null) {
-	    return;
-	}
-
-	if (kafkaListener != null && kafkaListener.retry() == KafkaListener.RETRY.NONE) {
-	    return;
-	}
-
-	final ConsumerRecord<String, ?> record = lastCompleted.getRecord();
-	if (kafkaListener != null && kafkaListener.retry() == KafkaListener.RETRY.RETRY_FROM_BROKER) {
-	    LOG.warn("message : {} retrying for the topic : {}, if the consumer re-start or re-subscribe another consumer in consumer group, try to process", record, record.topic());
-	    throw RetriableCommitFailedException.withUnderlyingMessage("Retry message offset " + record.offset() + " for topic " + record.topic());
-	}
-	if (kafkaListener != null && kafkaListener.retry() == KafkaListener.RETRY.RETRY_IN_MEMORY_TASK) {
-	    LOG.warn("message remove without commit for processing the topic : {}, if the re-submission message with retry task in consumer group, try to process", record.topic());
-	    throw new RejectedExecutionException("Retry task message offset " + record.offset() + " for topic " + record.topic());
-	}
-    }
-
-    protected InvokerResult getLastCompletedRecord(List<Future<InvokerResult>> invocations) {
-	InvokerResult lastCompleted = null;
-	InvokerResult crTemp;
-
-	final Iterator<Future<InvokerResult>> iterator = invocations.iterator();
-
-	while (iterator.hasNext()) {
-	    final Future<InvokerResult> nextRecord = iterator.next();
-	    if (nextRecord.isDone()) {
-		if (lastCompleted == null) {
-		    lastCompleted = FutureUtils.getUnchecked(nextRecord);
-		} else if (lastCompleted.getRecord().offset() < (crTemp = FutureUtils.getUnchecked(nextRecord)).getRecord().offset()) {
-		    lastCompleted = crTemp;
-		}
-		iterator.remove();
-	    } else {
-		break;
-	    }
-	}
-
-	return lastCompleted;
-    }
-
     private boolean commitLastOffsets() {
 	try {
 	    consumer.commitSync();
 	    return true;
 	} catch (CommitFailedException e) {
-	    LOG.info("Committing last offsets failed for {}.", kafkaConsumerProperties.getClientId(), e);
+	    LOG.info("Committing last offsets failed for {}.", getKafkaConsumerProperties().getClientId(), e);
 	    return false;
 	}
     }
@@ -228,20 +192,20 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 	    return true;
 	} catch (CommitFailedException e) {
 	    LOG.error("Offset commit failed for {}. offset={}, request={}",
-		    kafkaConsumerProperties.getClientId(), offsetMap, rec.value(), e);
+		    getKafkaConsumerProperties().getClientId(), offsetMap, rec.value(), e);
 	    return false;
 	}
     }
 
     @Override
     public void start() {
-	Assert.notNull(consumerRecordHandler, "ConsumerRecordHandler is null!");
-	LOG.info("Starting consumer. group={}", kafkaConsumerProperties.getGroupId());
+	Assert.notNull(consumerRecordHandler, "BulkConsumerRecordHandler is null!");
+	LOG.info("Starting bulk consumer. group={}", getKafkaConsumerProperties().getGroupId());
 	shutdownExecutorIfNotNull();
 	closeConsumerSilently();
-	this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), valueDeserializer);
+	this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), getValueDeserializer());
 	final ThreadFactory threadFactory = this.consumerThreadFactory == null
-		? new IncrementalNamingThreadFactory(kafkaConsumerProperties.getGroupId()) : this.consumerThreadFactory;
+		? new IncrementalNamingThreadFactory(getKafkaConsumerProperties().getGroupId()) : this.consumerThreadFactory;
 	this.executorService = new ThreadPoolExecutor(0, 1, 0, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), threadFactory);
 	executorService.submit(this);
 	running.set(true);
@@ -285,21 +249,6 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 	consumer.pause(Collections.singletonList(topicPartition));
     }
 
-    protected Properties buildConsumerProperties() {
-	final Properties props = PropertyUtils.copyProperties(kafkaConsumerProperties.getKafkaConsumerProperties());
-	props.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaConsumerProperties.getGroupId());
-	if (kafkaConsumerProperties.hasPatternBasedTopic()) {
-	    /*
-	     * We are decreasing the default metadata load period, which is 5
-	     * minutes, to 30s so that pattern based subscriptions take affect
-	     * shorter.
-	     */
-	    props.put(ConsumerConfig.METADATA_MAX_AGE_CONFIG, "30000");
-	}
-	props.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, kafkaConsumerProperties.getClientId());
-	return PropertyUtils.overrideWithSystemArguments(props);
-    }
-
     @Override
     public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
 	inProgressMessages.clear();
@@ -312,7 +261,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 
     @Override
     public void onPartitionsRevoked(Collection<TopicPartition> partitionsRevoked) {
-	if (!(kafkaConsumerProperties.isAtLeastOnce() || kafkaConsumerProperties.isAtLeastOnceBulk())) {
+	if (!(getKafkaConsumerProperties().isAtLeastOnce() || getKafkaConsumerProperties().isAtLeastOnceBulk())) {
 	    return;
 	}
 
@@ -331,9 +280,9 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 	LOG.info("REVOKED-> {}", partitionsRevoked);
     }
 
-    public void setConsumerRecordHandler(ConsumerRecordHandler consumerRecordHandler) {
-	Assert.notNull(consumerRecordHandler, "ConsumerRecordHandler is null!");
-	this.consumerRecordHandler = consumerRecordHandler;
+    public void setConsumerRecordHandler(BulkConsumerRecordHandler bulkConsumerRecordHandler) {
+	Assert.notNull(bulkConsumerRecordHandler, "BulkConsumerRecordHandler is null!");
+	this.consumerRecordHandler = bulkConsumerRecordHandler;
     }
 
     public void setConsumerThreadFactory(ThreadFactory consumerThreadFactory) {

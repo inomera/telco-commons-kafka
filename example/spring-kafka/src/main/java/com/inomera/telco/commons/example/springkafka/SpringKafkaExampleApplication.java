@@ -105,6 +105,29 @@ public class SpringKafkaExampleApplication {
                 .build();
     }
 
+    @Bean("bulkConsumer")
+    public KafkaMessageConsumer bulkConsumer(KafkaConsumerBuilder builder,
+                                         KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties) {
+
+        return builder.properties(defaultKafkaConsumerConfigurationProperties.getProperties())
+                .groupId("bulk-event-logger")
+                .topics("mouse-bulk-event.click", "mouse-bulk-event.dblclick", "bulk-example.unlistened-topic")
+                .offsetCommitStrategy(defaultKafkaConsumerConfigurationProperties.getOffsetCommitStrategy())
+                .valueDeserializer(kafkaDeserializer())
+                .autoPartitionPause(true)
+                .invoker()
+                .unordered()
+                .dynamicNamedExecutors()
+                .configureExecutor("mouse-bulk-event.click", 3, 5, 1, TimeUnit.MINUTES)
+                .configureExecutor("mouse-bulk-event.dblclick", 3, 5, 1, TimeUnit.MINUTES)
+                .configureExecutor("bulk-example.unlistened-topic", 3, 5, 1, TimeUnit.MINUTES)
+                .and()
+                .and()
+                .and()
+                .threadStore(consumerThreadStore())
+                .buildBulk();
+    }
+
     @Bean
     public KafkaMessagePublisher<Serializable> stringKafkaMessagePublisher(
             KafkaProducerConfigurationProperties defaultKafkaProducerConfigurationProperties) {

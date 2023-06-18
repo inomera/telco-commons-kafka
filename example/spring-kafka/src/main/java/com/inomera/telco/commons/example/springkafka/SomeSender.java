@@ -24,7 +24,8 @@ public class SomeSender {
     private static final Logger LOG = LoggerFactory.getLogger(SomeSender.class);
 
     private final KafkaMessagePublisher<Serializable> kafkaMessagePublisher;
-    private final AtomicInteger atomicInteger = new AtomicInteger(1);
+    public final AtomicInteger atomicInteger = new AtomicInteger(1);
+    public final AtomicInteger bulkAtomicInteger = new AtomicInteger(1);
 
     @Scheduled(fixedDelay = 1000)
     public void publishRandomText() {
@@ -43,5 +44,18 @@ public class SomeSender {
             }
         }
         LOG.info("Sent event");
+    }
+
+    @Scheduled(fixedDelay = 10000)
+    public void publishRandomBulkText() {
+	LOG.info("Sending event");
+	for (int i = 0; i < 4; i++) {
+	    bulkAtomicInteger.incrementAndGet();
+	    kafkaMessagePublisher.send("mouse-bulk-event.click", new SomethingHappenedMessage());
+	    kafkaMessagePublisher.send("mouse-bulk-event.dblclick", new SomethingHappenedBeautifullyMessage());
+	    kafkaMessagePublisher.send("mouse-bulk-event.dblclick", new SomethingHappenedConsumerMessage());
+	    kafkaMessagePublisher.send("bulk-example.unlistened-topic", new UnListenedMessage());
+	}
+	LOG.info("Sent event");
     }
 }

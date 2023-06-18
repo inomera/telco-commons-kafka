@@ -3,8 +3,10 @@ package com.inomera.telco.commons.springkafka.builder;
 import com.inomera.telco.commons.lang.Assert;
 import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
 import com.inomera.telco.commons.springkafka.consumer.*;
+import com.inomera.telco.commons.springkafka.consumer.invoker.BulkConsumerInvoker;
 import com.inomera.telco.commons.springkafka.consumer.invoker.ConsumerInvoker;
 import com.inomera.telco.commons.springkafka.consumer.invoker.ListenerMethodRegistry;
+import com.inomera.telco.commons.springkafka.consumer.poller.BulkConsumerPoller;
 import com.inomera.telco.commons.springkafka.consumer.poller.ConsumerPoller;
 import com.inomera.telco.commons.springkafka.consumer.poller.DefaultConsumerPoller;
 import org.apache.kafka.common.serialization.Deserializer;
@@ -152,5 +154,21 @@ public class KafkaConsumerBuilder {
         consumerPoller.setConsumerThreadFactory(getWrappedThreadFactory(consumerPoller));
         final ConsumerInvoker invoker = consumerInvokerBuilder.build(consumerPoller, groupId);
         return new SmartKafkaMessageConsumer(consumerPoller, invoker);
+    }
+
+    public KafkaMessageConsumer buildBulk() {
+        Assert.hasText(groupId, "groupId is null or empty");
+        Assert.notNull(offsetCommitStrategy, "offsetCommitStrategy is null");
+        Assert.notNull(properties, "properties is null");
+        Assert.notNull(valueDeserializer, "valueDeserializer is null");
+
+        final KafkaConsumerProperties properties = new KafkaConsumerProperties(groupId, topics, topicPattern,
+                offsetCommitStrategy, this.properties);
+
+        final BulkConsumerPoller bulkConsumerPoller = new BulkConsumerPoller(properties, valueDeserializer,
+                autoPartitionPause);
+        bulkConsumerPoller.setConsumerThreadFactory(getWrappedThreadFactory(bulkConsumerPoller));
+        final BulkConsumerInvoker bulkConsumerInvoker = consumerInvokerBuilder.buildBulk(bulkConsumerPoller, groupId);
+        return new BulkSmartKafkaMessageConsumer(bulkConsumerPoller, bulkConsumerInvoker);
     }
 }

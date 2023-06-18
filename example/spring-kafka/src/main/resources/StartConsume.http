@@ -8,4 +8,15 @@ Accept: application/json
 
 ###
 
+GET http://localhost:8080/stop-bulk-consume
+Accept: application/json
+
+###
+
+GET http://localhost:8080/start-bulk-consume
+Accept: application/json
+
+###
+
+
 

@@ -14,9 +14,14 @@ public @interface KafkaListener {
 
     boolean includeSubclasses() default false;
 
+    RETRY retry() default RETRY.NONE;
+
     /*
-    true : to remove the message before send commit ack to kafka server if there is any failure case occurred in KafkaListener method, so that the message is waiting to kafka topic for processing. The consumer should be restarted or kafka servers are restarted.
-    false : to handle failure case in happened, and send commit ack to kafka server.
+
      */
-    boolean retry() default false;
+    enum RETRY {
+        NONE,
+        RETRY_FROM_BROKER,
+        RETRY_IN_MEMORY_TASK
+    }
 }
