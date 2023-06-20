@@ -8,8 +8,6 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import static com.inomera.telco.commons.example.springkafka.SomeSender.atomicInteger;
-import static com.inomera.telco.commons.example.springkafka.SomeSender.bulkAtomicInteger;
 
 /**
  * @author Serdar Kuzucu
@@ -38,8 +36,6 @@ public class ManagementRestController {
 	final KafkaMessageConsumer consumer1 = (KafkaMessageConsumer) applicationContext.getBean("consumer");
 	consumer1.stop();
 
-	atomicInteger.getAndSet(1);
-
 	LOG.info("stop completed");
     }
 
@@ -59,8 +55,6 @@ public class ManagementRestController {
 
 	final KafkaMessageConsumer bulkConsumer = (KafkaMessageConsumer) applicationContext.getBean("bulkConsumer");
 	bulkConsumer.stop();
-
-	bulkAtomicInteger.getAndSet(1);
 
 	LOG.info("stop bulk completed");
     }

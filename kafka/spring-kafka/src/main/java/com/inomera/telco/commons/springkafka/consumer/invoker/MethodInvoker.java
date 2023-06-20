@@ -79,7 +79,7 @@ public class MethodInvoker {
 		}
 
 		final long invokerMethodCount = listenerMethodRegistry
-			.getListenerMethods(groupId, firstRecord.topic(), List.class)
+			.getListenerMethods(groupId, firstRecord.topic(), Set.class)
 			.peek(listenerMethod -> {
 			    final KafkaListener kafkaListener = invokeListenerMethods(listenerMethod, messages, firstRecord.topic());
 			    invokerResult.setKafkaListener(kafkaListener);

@@ -9,6 +9,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -39,7 +40,7 @@ public class ListenerMethod {
         }
     }
 
-    KafkaListener invoke(List<Object> messages, String topic) {
+    KafkaListener invoke(Set<Object> messages, String topic) {
         try {
             listenerMethod.invoke(listenerInstance, messages);
             return null;

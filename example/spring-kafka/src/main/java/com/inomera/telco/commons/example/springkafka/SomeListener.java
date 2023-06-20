@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 
 import static com.inomera.telco.commons.springkafka.annotation.KafkaListener.RETRY.NONE;
 import static com.inomera.telco.commons.springkafka.annotation.KafkaListener.RETRY.RETRY_FROM_BROKER;
@@ -30,8 +31,8 @@ public class SomeListener {
     }
 
     @KafkaListener(groupId = "bulk-event-logger", topics = {"mouse-bulk-event.click", "mouse-bulk-event.dblclick"}, includeSubclasses = true, retry = NONE)
-    public void bulkHandle(List<Message> messages) {
-	final Message message = messages.get(0);
+    public void bulkHandle(Set<Message> messages) {
+	final Message message = messages.iterator().next();
 	LOG.info("handle : message={}, messageCount={}", message, messages.size());
 	ThreadUtils.sleepQuietly(300);
 	if (message instanceof SomethingHappenedConsumerMessage) {

@@ -30,7 +30,7 @@ public class SomeSender {
     @Scheduled(fixedDelay = 1000)
     public void publishRandomText() {
         LOG.info("Sending event");
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 4; i++) {
             ThreadUtils.sleepQuietly(3000);
             final int value = atomicInteger.incrementAndGet();
             if (value % 3 == 0) {
@@ -46,10 +46,10 @@ public class SomeSender {
         LOG.info("Sent event");
     }
 
-    @Scheduled(fixedDelay = 10000)
+    @Scheduled(fixedDelay = 1000)
     public void publishRandomBulkText() {
 	LOG.info("Sending event");
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < 1000; i++) {
 	    bulkAtomicInteger.incrementAndGet();
 	    kafkaMessagePublisher.send("mouse-bulk-event.click", new SomethingHappenedMessage());
 	    kafkaMessagePublisher.send("mouse-bulk-event.dblclick", new SomethingHappenedBeautifullyMessage());
