@@ -36,11 +36,11 @@ public class SomeSender {
             if (value % 3 == 0) {
                 kafkaMessagePublisher.send("mouse-event.click", new SomethingHappenedMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
             } else if (value % 3 == 1) {
-                kafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedBeautifullyMessage(value + "-" + TransactionKeyUtils.generateTxKey())));
+                kafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedBeautifullyMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
             } else if (value % 3 == 2) {
-                kafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedConsumerMessage(value + "-" + TransactionKeyUtils.generateTxKey())));
+                kafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedConsumerMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
             } else {
-                kafkaMessagePublisher.send("example.unlistened-topic", new UnListenedMessage(value + "-" + TransactionKeyUtils.generateTxKey())));
+                kafkaMessagePublisher.send("example.unlistened-topic", new UnListenedMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
             }
         }
         LOG.info("Sent event");
