@@ -42,7 +42,7 @@ public class PauseAndRetryRejectionHandler implements RejectionHandler {
     }
 
     @Override
-    public void handleReject(Set<ConsumerRecord<String, ?>> records, FutureTask<InvokerResult> futureTask) {
+    public void handleReject(Set<ConsumerRecord<String, ?>> records, FutureTask<BulkInvokerResult> futureTask) {
         final ConsumerRecord<String, ?> firstRecord = records.iterator().next();
         final TopicPartition topicPartition = new TopicPartition(firstRecord.topic(), firstRecord.partition());
         LOG.info("handleReject::rejected execution of {}", topicPartition);
@@ -120,7 +120,7 @@ public class PauseAndRetryRejectionHandler implements RejectionHandler {
 
     @RequiredArgsConstructor
     private class BulkRetryTask implements Runnable {
-        private final FutureTask<InvokerResult> futureTask;
+        private final FutureTask<BulkInvokerResult> futureTask;
         private final Set<ConsumerRecord<String, ?>> records;
         private long initializationTimestamp = System.currentTimeMillis();
 

@@ -67,9 +67,9 @@ public class MethodInvoker {
 	}, invokerResult);
     }
 
-    public FutureTask<InvokerResult> addRecords(final Set<ConsumerRecord<String, ?>> records) {
+    public FutureTask<BulkInvokerResult> addRecords(final Set<ConsumerRecord<String, ?>> records) {
 	final ConsumerRecord<String, ?> firstRecord = records.iterator().next();
-	final InvokerResult invokerResult = new InvokerResult(firstRecord);
+	final BulkInvokerResult invokerResult = new BulkInvokerResult(records);
 	return new FutureTask<>(() -> {
 	    try {
 		final Set<Object> messages = records.stream().map(r -> r.value()).collect(Collectors.toSet());
@@ -91,7 +91,7 @@ public class MethodInvoker {
 		    invokeListenerMethodNotFoundHandler(firstRecord);
 		}
 	    } catch (Exception e) {
-		LOG.error("Error processing kafka message [{}].", firstRecord.value(), e);
+		LOG.error("Error processing bulk kafka message [{}].", firstRecord.value(), e);
 	    }
 	}, invokerResult);
     }

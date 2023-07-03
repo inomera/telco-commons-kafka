@@ -5,4 +5,12 @@ import lombok.ToString;
 @ToString(callSuper = true)
 public class SomethingHappenedConsumerMessage extends AbstractMessage {
     private static final long serialVersionUID = 1L;
+
+    public SomethingHappenedConsumerMessage() {
+        this("");
+    }
+
+    public SomethingHappenedConsumerMessage(String txKey) {
+        super(txKey);
+    }
 }

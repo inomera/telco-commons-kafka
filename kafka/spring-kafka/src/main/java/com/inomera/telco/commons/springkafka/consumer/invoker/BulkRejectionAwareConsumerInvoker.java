@@ -34,8 +34,8 @@ public class BulkRejectionAwareConsumerInvoker implements BulkConsumerInvoker {
     }
 
     @Override
-    public Future<InvokerResult> invoke(Set<ConsumerRecord<String, ?>> records) {
-        final FutureTask<InvokerResult> futureTask = methodInvoker.addRecords(records);
+    public Future<BulkInvokerResult> invoke(Set<ConsumerRecord<String, ?>> records) {
+        final FutureTask<BulkInvokerResult> futureTask = methodInvoker.addRecords(records);
         try {
             final ConsumerRecord<String, ?> firstRecord = records.iterator().next();
             final ThreadPoolExecutor executor = executorStrategy.get(firstRecord);

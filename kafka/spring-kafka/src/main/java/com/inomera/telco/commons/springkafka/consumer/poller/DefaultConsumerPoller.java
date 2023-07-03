@@ -5,11 +5,16 @@ import com.inomera.telco.commons.lang.PropertyUtils;
 import com.inomera.telco.commons.lang.thread.FutureUtils;
 import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
 import com.inomera.telco.commons.lang.thread.ThreadUtils;
-import com.inomera.telco.commons.springkafka.annotation.KafkaListener;
 import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerProperties;
 import com.inomera.telco.commons.springkafka.consumer.invoker.InvokerResult;
 import com.inomera.telco.commons.springkafka.util.InterruptUtils;
-import org.apache.kafka.clients.consumer.*;
+import org.apache.kafka.clients.consumer.CommitFailedException;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.Deserializer;
@@ -17,8 +22,21 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -39,6 +57,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
     private ConsumerRecordHandler consumerRecordHandler;
     private ExecutorService executorService;
     private KafkaConsumer<String, ?> consumer;
+    private RecordRetryer recordRetryer;
 
     public DefaultConsumerPoller(KafkaConsumerProperties kafkaConsumerProperties,
 				 Deserializer<?> valueDeserializer,
@@ -121,7 +140,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 		    if (!messageEntryValue.isEmpty()) {
 			final InvokerResult lastCompleted = getLastCompletedRecord(messageEntryValue);
 			if (lastCompleted != null) {
-			    checkAndThrowRetryException(lastCompleted);
+			    recordRetryer.checkAndRetry(lastCompleted);
 			}
 			if (lastCompleted != null && kafkaConsumerProperties.isAtLeastOnceSingle()) {
 			    commitOffset(lastCompleted.getRecord());
@@ -165,28 +184,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 	closed.set(true);
     }
 
-    protected void checkAndThrowRetryException(InvokerResult lastCompleted) {
-	final KafkaListener kafkaListener = lastCompleted.getKafkaListener();
-	if (kafkaListener == null) {
-	    return;
-	}
-
-	if (kafkaListener != null && kafkaListener.retry() == KafkaListener.RETRY.NONE) {
-	    return;
-	}
-
-	final ConsumerRecord<String, ?> record = lastCompleted.getRecord();
-	if (kafkaListener != null && kafkaListener.retry() == KafkaListener.RETRY.RETRY_FROM_BROKER) {
-	    LOG.warn("message : {} retrying for the topic : {}, if the consumer re-start or re-subscribe another consumer in consumer group, try to process", record, record.topic());
-	    throw RetriableCommitFailedException.withUnderlyingMessage("Retry message offset " + record.offset() + " for topic " + record.topic());
-	}
-	if (kafkaListener != null && kafkaListener.retry() == KafkaListener.RETRY.RETRY_IN_MEMORY_TASK) {
-	    LOG.warn("message remove without commit for processing the topic : {}, if the re-submission message with retry task in consumer group, try to process", record.topic());
-	    throw new RejectedExecutionException("Retry task message offset " + record.offset() + " for topic " + record.topic());
-	}
-    }
-
-    protected InvokerResult getLastCompletedRecord(List<Future<InvokerResult>> invocations) {
+    private InvokerResult getLastCompletedRecord(List<Future<InvokerResult>> invocations) {
 	InvokerResult lastCompleted = null;
 	InvokerResult crTemp;
 
@@ -239,6 +237,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 	LOG.info("Starting consumer. group={}", kafkaConsumerProperties.getGroupId());
 	shutdownExecutorIfNotNull();
 	closeConsumerSilently();
+	this.recordRetryer = new DefaultRecordRetryer(consumerRecordHandler);
 	this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), valueDeserializer);
 	final ThreadFactory threadFactory = this.consumerThreadFactory == null
 		? new IncrementalNamingThreadFactory(kafkaConsumerProperties.getGroupId()) : this.consumerThreadFactory;

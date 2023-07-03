@@ -11,5 +11,5 @@ public interface BulkConsumerInvoker {
 
     void stop();
 
-    Future<InvokerResult> invoke(Set<ConsumerRecord<String, ?>> records);
+    Future<BulkInvokerResult> invoke(Set<ConsumerRecord<String, ?>> records);
 }

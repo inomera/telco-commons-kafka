@@ -5,7 +5,7 @@ import com.inomera.telco.commons.lang.thread.FutureUtils;
 import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
 import com.inomera.telco.commons.lang.thread.ThreadUtils;
 import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerProperties;
-import com.inomera.telco.commons.springkafka.consumer.invoker.InvokerResult;
+import com.inomera.telco.commons.springkafka.consumer.invoker.BulkInvokerResult;
 import com.inomera.telco.commons.springkafka.util.InterruptUtils;
 import org.apache.kafka.clients.consumer.CommitFailedException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -44,13 +44,13 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final Map<TopicPartition, List<Future<InvokerResult>>> inProgressMessages = new HashMap<>();
+    private final Map<TopicPartition, List<Future<BulkInvokerResult>>> inProgressMessages = new HashMap<>();
     private final Map<TopicPartition, OffsetAndMetadata> offsetMap = new HashMap<>(1);
-
     private ThreadFactory consumerThreadFactory;
     private BulkConsumerRecordHandler consumerRecordHandler;
     private ExecutorService executorService;
     private KafkaConsumer<String, ?> consumer;
+    private BulkRecordRetryer bulkRecordRetryer;
 
     public BulkConsumerPoller(KafkaConsumerProperties kafkaConsumerProperties,
 			      Deserializer<?> valueDeserializer,
@@ -68,7 +68,7 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
 		consumer.subscribe(kafkaConsumerProperties.getTopics(), this);
 	    }
 
-	    List<Future<InvokerResult>> partitionFutures = null;
+	    List<Future<BulkInvokerResult>> partitionFutures = null;
 
 	    final Collection<TopicPartition> toBePause = new HashSet<>();
 	    final Collection<TopicPartition> toBeResume = new HashSet<>();
@@ -108,8 +108,8 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
 			}
 		    }
 
-		    for (Set<ConsumerRecord<String, ?>> value : tpRecordsMap.values()) {
-			partitionFutures.add(consumerRecordHandler.handle(value));
+		    for (Set<ConsumerRecord<String, ?>> messages : tpRecordsMap.values()) {
+			partitionFutures.add(consumerRecordHandler.handle(messages));
 		    }
 
 		    // do not read any records on the next poll cycle
@@ -122,23 +122,23 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
 
 		toBeResume.clear();
 
-		final Iterator<Map.Entry<TopicPartition, List<Future<InvokerResult>>>> messageIterator = inProgressMessages.entrySet().iterator();
+		final Iterator<Map.Entry<TopicPartition, List<Future<BulkInvokerResult>>>> messageIterator = inProgressMessages.entrySet().iterator();
 		while (messageIterator.hasNext()) {
-		    final Map.Entry<TopicPartition, List<Future<InvokerResult>>> messageEntry = messageIterator.next();
-		    final List<Future<InvokerResult>> messageEntryValue = messageEntry.getValue();
+		    final Map.Entry<TopicPartition, List<Future<BulkInvokerResult>>> messageEntry = messageIterator.next();
+		    final List<Future<BulkInvokerResult>> messageEntryValue = messageEntry.getValue();
 		    if (!messageEntryValue.isEmpty()) {
-			final InvokerResult lastCompleted = getLastCompletedRecord(messageEntryValue);
+			final BulkInvokerResult lastCompleted = getLastCompletedRecord(messageEntryValue);
 			if (lastCompleted != null) {
-			    checkAndThrowRetryException(lastCompleted);
+			    bulkRecordRetryer.checkAndRetry(lastCompleted);
 			}
 			if (lastCompleted != null && kafkaConsumerProperties.isAtLeastOnceSingle()) {
-			    commitOffset(lastCompleted.getRecord());
+			    commitOffset(lastCompleted.getRecords().iterator().next());
 			}
 
 			if (messageEntryValue.isEmpty()) {
 			    if (kafkaConsumerProperties.isAtLeastOnceBulk()) {
 				if (lastCompleted != null) {
-				    commitOffset(lastCompleted.getRecord());
+				    commitOffset(lastCompleted.getRecords().iterator().next());
 				}
 			    }
 			    toBeResume.add(messageEntry.getKey());
@@ -173,6 +173,30 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
 	closed.set(true);
     }
 
+    protected BulkInvokerResult getLastCompletedRecord(List<Future<BulkInvokerResult>> invocations) {
+	BulkInvokerResult lastCompleted = null;
+	BulkInvokerResult crTemp;
+
+	final Iterator<Future<BulkInvokerResult>> iterator = invocations.iterator();
+
+	while (iterator.hasNext()) {
+	    final Future<BulkInvokerResult> nextRecord = iterator.next();
+	    if (nextRecord.isDone()) {
+		if (lastCompleted == null) {
+		    lastCompleted = FutureUtils.getUnchecked(nextRecord);
+		} else if (lastCompleted.getRecords().iterator().next().offset() < (crTemp = FutureUtils.getUnchecked(nextRecord)).getRecords().iterator().next().offset()) {
+		    lastCompleted = crTemp;
+		}
+		iterator.remove();
+	    } else {
+		break;
+	    }
+	}
+
+	return lastCompleted;
+    }
+
+
     private boolean commitLastOffsets() {
 	try {
 	    consumer.commitSync();
@@ -203,6 +227,7 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
 	LOG.info("Starting bulk consumer. group={}", getKafkaConsumerProperties().getGroupId());
 	shutdownExecutorIfNotNull();
 	closeConsumerSilently();
+	this.bulkRecordRetryer = new DefaultBulkRecordRetryer(consumerRecordHandler);
 	this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), getValueDeserializer());
 	final ThreadFactory threadFactory = this.consumerThreadFactory == null
 		? new IncrementalNamingThreadFactory(getKafkaConsumerProperties().getGroupId()) : this.consumerThreadFactory;
@@ -266,12 +291,12 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
 	}
 
 	for (TopicPartition tpRevoked : partitionsRevoked) {
-	    final List<Future<InvokerResult>> inProgressTasks = inProgressMessages.get(tpRevoked);
+	    final List<Future<BulkInvokerResult>> inProgressTasks = inProgressMessages.get(tpRevoked);
 	    if (inProgressTasks != null && !inProgressTasks.isEmpty()) {
 		for (int i = inProgressTasks.size() - 1; i >= 0; --i) {
-		    final Future<InvokerResult> f = inProgressTasks.get(i);
+		    final Future<BulkInvokerResult> f = inProgressTasks.get(i);
 		    if (f.isDone()) {
-			commitOffset(FutureUtils.getUnchecked(f).getRecord());
+			commitOffset(FutureUtils.getUnchecked(f).getRecords().iterator().next());
 			break;
 		    }
 		}
