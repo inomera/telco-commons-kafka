@@ -23,7 +23,7 @@ public class SomeListener {
     private static final Logger LOG = LoggerFactory.getLogger(SomeListener.class);
     private static final MessageContextHolder messageHolder = new MessageContextHolder();
 
-    @KafkaListener(groupId = "event-logger", topics = {"mouse-event.click", "mouse-event.dblclick"})
+    @KafkaListener(groupId = "event-logger", topics = {"mouse-event.click", "mouse-event.dblclick"}, includeSubclasses = true)
     public void handle(Message message) {
 	LOG.info("handle : message={}", message);
 	ThreadUtils.sleepQuietly(300);
