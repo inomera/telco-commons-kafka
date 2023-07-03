@@ -16,7 +16,7 @@ public class DefaultBulkRecordRetryer implements BulkRecordRetryer {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultBulkRecordRetryer.class);
 
-    private final Map<Long, AtomicInteger> retryMap = new ConcurrentHashMap<>(10);
+    private final Map<String, AtomicInteger> retryMap = new ConcurrentHashMap<>(10);
     private final BulkConsumerRecordHandler consumerRecordHandler;
 
     public DefaultBulkRecordRetryer(BulkConsumerRecordHandler consumerRecordHandler) {
@@ -36,7 +36,8 @@ public class DefaultBulkRecordRetryer implements BulkRecordRetryer {
 
 	final Set<ConsumerRecord<String, ?>> records = result.getRecords();
 	final ConsumerRecord<String, ?> record = records.iterator().next();
-	final Long retryKey = Long.valueOf(record.offset());
+	final String topic = record.topic();
+	final String retryKey = topic + "-" + record.offset();
 	if (kafkaListener != null && kafkaListener.retry() == KafkaListener.RETRY.RETRY_FROM_BROKER) {
 	    final AtomicInteger actualCount = retryMap.computeIfAbsent(retryKey, mf -> new AtomicInteger(0));
 	    if (actualCount.incrementAndGet() >= kafkaListener.retryCount()) {

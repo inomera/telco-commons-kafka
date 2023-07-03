@@ -15,7 +15,7 @@ public class DefaultRecordRetryer implements RecordRetryer {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultRecordRetryer.class);
 
-    private final Map<Long, AtomicInteger> retryMap = new ConcurrentHashMap<>(10);
+    private final Map<String, AtomicInteger> retryMap = new ConcurrentHashMap<>(10);
     private final ConsumerRecordHandler consumerRecordHandler;
 
     public DefaultRecordRetryer(ConsumerRecordHandler consumerRecordHandler) {
@@ -34,22 +34,24 @@ public class DefaultRecordRetryer implements RecordRetryer {
 	}
 
 	final ConsumerRecord<String, ?> record = result.getRecord();
+	final String topic = record.topic();
+	final String retryKey = topic + "-" + record.offset();
 	if (kafkaListener != null && kafkaListener.retry() == KafkaListener.RETRY.RETRY_FROM_BROKER) {
-	    final AtomicInteger actualCount = retryMap.putIfAbsent(Long.valueOf(record.offset()), new AtomicInteger(0));
+	    final AtomicInteger actualCount = retryMap.putIfAbsent(retryKey, new AtomicInteger(0));
 	    if (actualCount.incrementAndGet() >= kafkaListener.retryCount()) {
-		LOG.warn(" the message : {} is reached the retry count limit for the topic : {}", record, record.topic());
+		LOG.warn(" the message : {} is reached the retry count limit for the topic : {}", record, topic);
 		return;
 	    }
-	    LOG.warn("before ack/commit to broker, message : {} retrying for the topic : {}, if the consumer re-start or re-subscribe another consumer in consumer group, try to process", record, record.topic());
-	    throw RetriableCommitFailedException.withUnderlyingMessage("Retry message offset " + record.offset() + " for topic " + record.topic());
+	    LOG.warn("before ack/commit to broker, message : {} retrying for the topic : {}, if the consumer re-start or re-subscribe another consumer in consumer group, try to process", record, topic);
+	    throw RetriableCommitFailedException.withUnderlyingMessage("Retry message offset " + record.offset() + " for topic " + topic);
 	}
 	if (kafkaListener != null && kafkaListener.retry() == KafkaListener.RETRY.RETRY_IN_MEMORY_TASK) {
-	    final AtomicInteger actualCount = retryMap.putIfAbsent(Long.valueOf(record.offset()), new AtomicInteger(0));
+	    final AtomicInteger actualCount = retryMap.putIfAbsent(retryKey, new AtomicInteger(0));
 	    if (actualCount.incrementAndGet() >= kafkaListener.retryCount()) {
-		LOG.warn(" the first one of the messages : {} is reached the retry count limit for the topic : {}", record, record.topic());
+		LOG.warn(" the first one of the messages : {} is reached the retry count limit for the topic : {}", record, topic);
 		return;
 	    }
-	    LOG.warn("message remove without commit for processing the topic : {}, if the re-submission message with retry task in consumer group, try to process", record.topic());
+	    LOG.warn("message remove without commit for processing the topic : {}, if the re-submission message with retry task in consumer group, try to process", topic);
 	    consumerRecordHandler.handle(record);
 	}
     }
