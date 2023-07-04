@@ -39,12 +39,6 @@ public class DefaultBulkRecordRetryer implements BulkRecordRetryer {
 	final String topic = record.topic();
 	final String retryKey = topic + "-" + record.offset();
 	if (kafkaListener != null && kafkaListener.retry() == KafkaListener.RETRY.RETRY_FROM_BROKER) {
-	    final AtomicInteger actualCount = retryMap.computeIfAbsent(retryKey, mf -> new AtomicInteger(0));
-	    if (actualCount.incrementAndGet() >= kafkaListener.retryCount()) {
-		LOG.warn(" the first one of the messages : {} is reached the retry count limit for the topic : {}", record, record.topic());
-		retryMap.remove(retryKey);
-		return;
-	    }
 	    LOG.warn("before ack/commit to broker, message : {} retrying for the topic : {}, if the consumer re-start or re-subscribe another consumer in consumer group, try to process", records, record.topic());
 	    throw RetriableCommitFailedException.withUnderlyingMessage("Retry message offset " + record.offset() + " for topic " + record.topic());
 	}
