@@ -6,6 +6,8 @@ import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
 import com.inomera.telco.commons.lang.thread.ThreadUtils;
 import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerProperties;
 import com.inomera.telco.commons.springkafka.consumer.invoker.BulkInvokerResult;
+import com.inomera.telco.commons.springkafka.consumer.retry.BulkRecordRetryer;
+import com.inomera.telco.commons.springkafka.consumer.retry.DefaultBulkRecordRetryer;
 import com.inomera.telco.commons.springkafka.util.InterruptUtils;
 import org.apache.kafka.clients.consumer.CommitFailedException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -227,7 +229,7 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
 	LOG.info("Starting bulk consumer. group={}", getKafkaConsumerProperties().getGroupId());
 	shutdownExecutorIfNotNull();
 	closeConsumerSilently();
-	this.bulkRecordRetryer = new DefaultBulkRecordRetryer(consumerRecordHandler);
+	this.bulkRecordRetryer = new DefaultBulkRecordRetryer();
 	this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), getValueDeserializer());
 	final ThreadFactory threadFactory = this.consumerThreadFactory == null
 		? new IncrementalNamingThreadFactory(getKafkaConsumerProperties().getGroupId()) : this.consumerThreadFactory;

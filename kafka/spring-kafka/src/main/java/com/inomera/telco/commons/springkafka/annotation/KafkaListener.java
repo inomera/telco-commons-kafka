@@ -25,9 +25,15 @@ public @interface KafkaListener {
 
     /*
     The feature is experimental level
-    retry count value. It works for RETRY strategies(excludes NONE)
+    minimum retry count value. It works for RETRY strategies(excludes NONE)
      */
     int retryCount() default 3;
+
+    /*
+    The feature is experimental level
+    max retry backoff time value in MILLIS. It works only for RETRY_IN_MEMORY_TASK RETRY strategy
+    */
+    long retryBackoffTime() default 3000L;
 
     /*
     The feature is experimental level

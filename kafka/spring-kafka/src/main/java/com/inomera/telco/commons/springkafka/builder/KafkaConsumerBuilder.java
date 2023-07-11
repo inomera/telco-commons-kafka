@@ -9,6 +9,10 @@ import com.inomera.telco.commons.springkafka.consumer.invoker.ListenerMethodRegi
 import com.inomera.telco.commons.springkafka.consumer.poller.BulkConsumerPoller;
 import com.inomera.telco.commons.springkafka.consumer.poller.ConsumerPoller;
 import com.inomera.telco.commons.springkafka.consumer.poller.DefaultConsumerPoller;
+import com.inomera.telco.commons.springkafka.consumer.retry.DefaultInMemoryBulkRecordRetryConsumer;
+import com.inomera.telco.commons.springkafka.consumer.retry.DefaultInMemoryRecordRetryConsumer;
+import com.inomera.telco.commons.springkafka.consumer.retry.InMemoryBulkRecordRetryConsumer;
+import com.inomera.telco.commons.springkafka.consumer.retry.InMemoryRecordRetryConsumer;
 import org.apache.kafka.common.serialization.Deserializer;
 
 import java.util.*;
@@ -30,6 +34,8 @@ public class KafkaConsumerBuilder {
     private ThreadFactory consumerThreadFactory;
     private boolean autoPartitionPause = true;
     private ConsumerThreadStore threadStore;
+    private InMemoryBulkRecordRetryConsumer inMemoryBulkRecordRetryConsumer;
+    private InMemoryRecordRetryConsumer inMemoryRecordConsumer;
     private final ConsumerInvokerBuilder consumerInvokerBuilder;
 
     private KafkaConsumerBuilder(ListenerMethodRegistry listenerMethodRegistry) {
@@ -106,6 +112,17 @@ public class KafkaConsumerBuilder {
         return this;
     }
 
+
+    public KafkaConsumerBuilder inMemoryBulkRecordRetryConsumer(InMemoryBulkRecordRetryConsumer inMemoryBulkRecordRetryConsumer) {
+        this.inMemoryBulkRecordRetryConsumer = inMemoryBulkRecordRetryConsumer;
+        return this;
+    }
+
+    public KafkaConsumerBuilder inMemoryRecordConsumer(InMemoryRecordRetryConsumer inMemoryRecordConsumer) {
+        this.inMemoryRecordConsumer = inMemoryRecordConsumer;
+        return this;
+    }
+
     public ConsumerInvokerBuilder invoker() {
         return consumerInvokerBuilder;
     }
@@ -153,7 +170,8 @@ public class KafkaConsumerBuilder {
                 autoPartitionPause);
         consumerPoller.setConsumerThreadFactory(getWrappedThreadFactory(consumerPoller));
         final ConsumerInvoker invoker = consumerInvokerBuilder.build(consumerPoller, groupId);
-        return new SmartKafkaMessageConsumer(consumerPoller, invoker);
+        this.inMemoryRecordConsumer = this.inMemoryRecordConsumer == null ? new DefaultInMemoryRecordRetryConsumer(invoker::invoke) : this.inMemoryRecordConsumer;
+        return new SmartKafkaMessageConsumer(consumerPoller, invoker, this.inMemoryRecordConsumer);
     }
 
     public KafkaMessageConsumer buildBulk() {
@@ -169,6 +187,7 @@ public class KafkaConsumerBuilder {
                 autoPartitionPause);
         bulkConsumerPoller.setConsumerThreadFactory(getWrappedThreadFactory(bulkConsumerPoller));
         final BulkConsumerInvoker bulkConsumerInvoker = consumerInvokerBuilder.buildBulk(bulkConsumerPoller, groupId);
-        return new BulkSmartKafkaMessageConsumer(bulkConsumerPoller, bulkConsumerInvoker);
+        this.inMemoryBulkRecordRetryConsumer = this.inMemoryBulkRecordRetryConsumer == null ? new DefaultInMemoryBulkRecordRetryConsumer(bulkConsumerInvoker::invoke) : this.inMemoryBulkRecordRetryConsumer;
+        return new BulkSmartKafkaMessageConsumer(bulkConsumerPoller, bulkConsumerInvoker, this.inMemoryBulkRecordRetryConsumer);
     }
 }

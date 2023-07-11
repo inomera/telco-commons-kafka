@@ -23,16 +23,16 @@ public class SomeListener {
     private static final Logger LOG = LoggerFactory.getLogger(SomeListener.class);
     private static final MessageContextHolder messageHolder = new MessageContextHolder();
 
-    @KafkaListener(groupId = "event-logger", topics = {"mouse-event.click", "mouse-event.dblclick"}, includeSubclasses = true)
+    @KafkaListener(groupId = "event-logger", topics = {"mouse-event.click", "mouse-event.dblclick"}, includeSubclasses = true, retry = RETRY_IN_MEMORY_TASK, retryCount = 5, retryBackoffTime = 5000L)
     public void handle(Message message) {
 	LOG.info("handle : message={}", message);
 	ThreadUtils.sleepQuietly(300);
 	if (message instanceof SomethingHappenedConsumerMessage) {
 	    final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
-	    if (msg.getTime() % 2 == 0) {
-		LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
-		return;
-	    }
+//	    if (msg.getTime() % 2 == 0) {
+//		LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
+//		return;
+//	    }
 	    throw new RuntimeException("retry test single message consumer without retry");
 	}
     }

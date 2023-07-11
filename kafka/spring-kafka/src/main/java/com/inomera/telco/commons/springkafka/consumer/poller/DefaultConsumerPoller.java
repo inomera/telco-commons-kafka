@@ -7,6 +7,8 @@ import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
 import com.inomera.telco.commons.lang.thread.ThreadUtils;
 import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerProperties;
 import com.inomera.telco.commons.springkafka.consumer.invoker.InvokerResult;
+import com.inomera.telco.commons.springkafka.consumer.retry.DefaultRecordRetryer;
+import com.inomera.telco.commons.springkafka.consumer.retry.RecordRetryer;
 import com.inomera.telco.commons.springkafka.util.InterruptUtils;
 import org.apache.kafka.clients.consumer.CommitFailedException;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -237,7 +239,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 	LOG.info("Starting consumer. group={}", kafkaConsumerProperties.getGroupId());
 	shutdownExecutorIfNotNull();
 	closeConsumerSilently();
-	this.recordRetryer = new DefaultRecordRetryer(consumerRecordHandler);
+	this.recordRetryer = new DefaultRecordRetryer();
 	this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), valueDeserializer);
 	final ThreadFactory threadFactory = this.consumerThreadFactory == null
 		? new IncrementalNamingThreadFactory(kafkaConsumerProperties.getGroupId()) : this.consumerThreadFactory;
