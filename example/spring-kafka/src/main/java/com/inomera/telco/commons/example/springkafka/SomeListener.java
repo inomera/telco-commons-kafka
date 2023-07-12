@@ -29,10 +29,10 @@ public class SomeListener {
 	ThreadUtils.sleepQuietly(300);
 	if (message instanceof SomethingHappenedConsumerMessage) {
 	    final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
-//	    if (msg.getTime() % 2 == 0) {
-//		LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
-//		return;
-//	    }
+	    if (msg.getTime() % 2 == 0) {
+		LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
+		return;
+	    }
 	    throw new RuntimeException("retry test single message consumer without retry");
 	}
     }
