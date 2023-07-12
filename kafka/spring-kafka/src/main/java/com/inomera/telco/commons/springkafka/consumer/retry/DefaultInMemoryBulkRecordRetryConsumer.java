@@ -3,7 +3,6 @@ package com.inomera.telco.commons.springkafka.consumer.retry;
 import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
 import com.inomera.telco.commons.lang.thread.ThreadUtils;
 import com.inomera.telco.commons.springkafka.consumer.invoker.BulkInvokerResult;
-import com.inomera.telco.commons.springkafka.consumer.invoker.InvokerResult;
 import com.inomera.telco.commons.springkafka.consumer.poller.BulkConsumerRecordHandler;
 import com.inomera.telco.commons.springkafka.util.InterruptUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
