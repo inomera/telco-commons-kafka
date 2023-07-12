@@ -47,7 +47,7 @@ public @interface KafkaListener {
 
     /*
     NONE : no retry.
-    RETRY_FROM_BROKER : do not ack/commit message to broker! re-start consumer, consumer polls message from broker again. default retryCount val is 3.
+    RETRY_FROM_BROKER : do not ack/commit message to broker! re-start consumer, consumer polls message from broker again. It can cause duplicated dirty messages.
     RETRY_IN_MEMORY_TASK : commit/ack message to broker, retry in consumer local queue. default retryCount val is 3.
      */
     enum RETRY {
