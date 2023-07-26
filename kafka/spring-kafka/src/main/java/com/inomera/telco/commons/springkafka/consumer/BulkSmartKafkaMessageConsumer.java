@@ -1,26 +1,24 @@
 package com.inomera.telco.commons.springkafka.consumer;
 
-import com.inomera.telco.commons.springkafka.consumer.invoker.ConsumerInvoker;
-import com.inomera.telco.commons.springkafka.consumer.poller.ConsumerPoller;
-import com.inomera.telco.commons.springkafka.consumer.retry.InMemoryRecordRetryConsumer;
+import com.inomera.telco.commons.springkafka.consumer.invoker.BulkConsumerInvoker;
+import com.inomera.telco.commons.springkafka.consumer.poller.BulkConsumerPoller;
+import com.inomera.telco.commons.springkafka.consumer.retry.InMemoryBulkRecordRetryConsumer;
 import org.springframework.core.Ordered;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * @author Serdar Kuzucu
- */
-public class SmartKafkaMessageConsumer implements KafkaMessageConsumer {
-    private final ConsumerPoller consumerPoller;
-    private final ConsumerInvoker consumerInvoker;
-    private final InMemoryRecordRetryConsumer inMemoryRecordRetryConsumer;
+
+public class BulkSmartKafkaMessageConsumer implements KafkaMessageConsumer {
+    private final BulkConsumerPoller consumerPoller;
+    private final BulkConsumerInvoker consumerInvoker;
+    private final InMemoryBulkRecordRetryConsumer inMemoryBulkRecordRetryConsumer;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    public SmartKafkaMessageConsumer(ConsumerPoller consumerPoller, ConsumerInvoker consumerInvoker, InMemoryRecordRetryConsumer inMemoryRecordRetryConsumer) {
+    public BulkSmartKafkaMessageConsumer(BulkConsumerPoller consumerPoller, BulkConsumerInvoker consumerInvoker, InMemoryBulkRecordRetryConsumer inMemoryBulkRecordRetryConsumer) {
         this.consumerPoller = consumerPoller;
         this.consumerInvoker = consumerInvoker;
         consumerPoller.setConsumerRecordHandler(consumerInvoker::invoke);
-        this.inMemoryRecordRetryConsumer = inMemoryRecordRetryConsumer;
+        this.inMemoryBulkRecordRetryConsumer = inMemoryBulkRecordRetryConsumer;
     }
 
     @Override
@@ -31,7 +29,7 @@ public class SmartKafkaMessageConsumer implements KafkaMessageConsumer {
         running.set(true);
         consumerInvoker.start();
         consumerPoller.start();
-        inMemoryRecordRetryConsumer.start();
+        inMemoryBulkRecordRetryConsumer.start();
     }
 
     @Override
@@ -41,7 +39,7 @@ public class SmartKafkaMessageConsumer implements KafkaMessageConsumer {
         }
         consumerPoller.stop();
         consumerInvoker.stop();
-        inMemoryRecordRetryConsumer.stop();
+        inMemoryBulkRecordRetryConsumer.stop();
         running.set(false);
     }
 

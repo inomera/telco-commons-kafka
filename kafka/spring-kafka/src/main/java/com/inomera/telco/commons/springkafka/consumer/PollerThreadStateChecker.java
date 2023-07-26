@@ -59,20 +59,22 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
                 continue;
             }
             LOG.info("PollerThreadStateChecker -> State changed!! {}", monitoringThread.toString());
-            if (StringUtils.isBlank(monitoringThread.getCurrentJvmState())) {
-                LOG.warn("PollerThreadStateChecker -> Thread is dead!! {}", monitoringThread.toString());
-                threadStore.getThreads().remove(monitoringThread.getThreadId());
-                if (monitoringThread.getConsumerPoller().shouldRestart()) {
-                    LOG.info("PollerThreadStateChecker -> Thread is trying to start!! {}", monitoringThread.toString());
-                    try {
-                        monitoringThread.getConsumerPoller().start();
-                    } catch (Exception e) {
-                        pollerThreadNotifier.alarm(monitoringThread.toString(), e);
-                        return;
-                    }
-                    LOG.info("PollerThreadStateChecker -> Thread started!! {}", monitoringThread.toString());
-                }
+            if (StringUtils.isNotBlank(monitoringThread.getCurrentJvmState())) {
+                continue;
             }
+            LOG.warn("PollerThreadStateChecker -> Thread is dead!! {}", monitoringThread.toString());
+            threadStore.getThreads().remove(monitoringThread.getThreadId());
+            if (!monitoringThread.getConsumerPoller().shouldRestart()) {
+                continue;
+            }
+            LOG.info("PollerThreadStateChecker -> Thread is trying to start!! {}", monitoringThread.toString());
+            try {
+                monitoringThread.getConsumerPoller().start();
+            } catch (Exception e) {
+                pollerThreadNotifier.alarm(monitoringThread.toString(), e);
+                return;
+            }
+            LOG.info("PollerThreadStateChecker -> Thread started!! {}", monitoringThread.toString());
         }
     }
 

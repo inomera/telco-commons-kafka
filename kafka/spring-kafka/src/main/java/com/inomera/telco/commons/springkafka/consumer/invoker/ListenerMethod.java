@@ -8,6 +8,7 @@ import org.springframework.core.annotation.AnnotationUtils;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -30,10 +31,24 @@ public class ListenerMethod {
             listenerMethod.invoke(listenerInstance, message);
             return null;
         } catch (InvocationTargetException ite) {
-            LOG.error("InvocationTargetException listener method : {} with message : {}, topic : {}", this, message, topic, ite.getTargetException());
+            LOG.warn("InvocationTargetException listener method : {} with message : {}, topic : {}", this, message, topic, ite.getTargetException());
             return getKafkaListener();
         } catch (Exception e) {
             LOG.error("Error invoking listener method {} with message {}", this, message, e);
+            return null;
+        }
+    }
+
+    KafkaListener invoke(Set<Object> messages, String topic) {
+        try {
+            listenerMethod.invoke(listenerInstance, messages);
+            return null;
+        } catch (InvocationTargetException ite) {
+            LOG.warn("InvocationTargetException listener method : {} with last message : {}, topic : {}", this, messages.iterator().next(), topic, ite.getTargetException());
+            LOG.debug("InvocationTargetException listener method : {} with all messages : {}, topic : {}", this, messages, topic, ite.getTargetException());
+            return getKafkaListener();
+        } catch (Exception e) {
+            LOG.error("Error invoking listener method {} with last message {}", this, messages.iterator().next(), e);
             return null;
         }
     }

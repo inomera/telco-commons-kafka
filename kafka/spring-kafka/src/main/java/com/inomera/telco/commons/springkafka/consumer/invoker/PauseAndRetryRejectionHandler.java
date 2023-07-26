@@ -10,7 +10,12 @@ import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.*;
+import java.util.Set;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author Serdar Kuzucu
@@ -34,6 +39,16 @@ public class PauseAndRetryRejectionHandler implements RejectionHandler {
 
         consumerPoller.pause(topicPartition);
         retryExecutor.submit(new RetryTask(futureTask, record));
+    }
+
+    @Override
+    public void handleReject(Set<ConsumerRecord<String, ?>> records, FutureTask<BulkInvokerResult> futureTask) {
+        final ConsumerRecord<String, ?> firstRecord = records.iterator().next();
+        final TopicPartition topicPartition = new TopicPartition(firstRecord.topic(), firstRecord.partition());
+        LOG.info("handleReject::rejected execution of {}", topicPartition);
+
+        consumerPoller.pause(topicPartition);
+        retryExecutor.submit(new BulkRetryTask(futureTask, records));
     }
 
     @Override
@@ -97,6 +112,45 @@ public class PauseAndRetryRejectionHandler implements RejectionHandler {
                     }
                 } catch (InterruptedException e) {
                     LOG.info("handleReject::execution queue interrupted::{}-{}", record.topic(), record.partition());
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+    }
+
+    @RequiredArgsConstructor
+    private class BulkRetryTask implements Runnable {
+        private final FutureTask<BulkInvokerResult> futureTask;
+        private final Set<ConsumerRecord<String, ?>> records;
+        private long initializationTimestamp = System.currentTimeMillis();
+
+        @Override
+        public void run() {
+            if (!futureTask.isDone()) {
+                final ConsumerRecord<String, ?> firstRecord = records.iterator().next();
+                try {
+                    final ThreadPoolExecutor executor = executorStrategy.get(firstRecord);
+                    try {
+                        /*
+                         * submit(Runnable) method creates new threads when possible.
+                         * We need to first try this. Since this is not blocking, it will
+                         * throw RejectedExecutionException when threads are busy and queue is full.
+                         */
+                        executor.submit(futureTask);
+                        return;
+                    } catch (RejectedExecutionException e) {
+                        LOG.debug("{} rejected by exception: {}", firstRecord.topic(), e.getMessage());
+                    }
+                    if (!executor.getQueue().offer(futureTask, 5, TimeUnit.MILLISECONDS)) {
+                        final long elapsedTime = System.currentTimeMillis() - initializationTimestamp;
+                        if (elapsedTime > 2000) {
+                            LOG.info("handleReject::{} threads are busy more than {} seconds. Retry queue size is {}",
+                                    firstRecord.topic(), elapsedTime, retryExecutor.getQueue().size());
+                        }
+                        retryExecutor.submit(this);
+                    }
+                } catch (InterruptedException e) {
+                    LOG.info("handleReject::execution queue interrupted::{}-{}", firstRecord.topic(), firstRecord.partition());
                     Thread.currentThread().interrupt();
                 }
             }

@@ -35,8 +35,26 @@ kafka-consumers:
       reconnect.backoff.ms=5000
       reconnect.backoff.max.ms=9223372036854775806
     number-of-invoker-threads: 2
+    offset-commit-strategy: AT_MOST_ONCE_BULK
+    pollerThreadProperties: |-
+      poller.thread.checker.active=true
+      poller.thread.checker.initialDelaySec=5
+      poller.thread.checker.retryAsSec=30
+  retry:
+    properties: |-
+      bootstrap.servers=localhost:9092
+      metadata.max.age.ms=10000
+      enable.auto.commit=false
+      auto.offset.reset=earliest
+      heartbeat.interval.ms=10000
+      request.timeout.ms=31000
+      session.timeout.ms=30000
+      max.poll.records=100
+      reconnect.backoff.ms=5000
+      reconnect.backoff.max.ms=9223372036854775806
+    number-of-invoker-threads: 2
     offset-commit-strategy: AT_LEAST_ONCE_BULK
     pollerThreadProperties: |-
       poller.thread.checker.active=true
       poller.thread.checker.initialDelaySec=5
-      poller.thread.checker.retryAsSec=5
+      poller.thread.checker.retryAsSec=30
