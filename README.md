@@ -36,6 +36,17 @@ build.gradle > publishing > publications > mavenJava > version
 
 Please change the version wisely.
 
+### Important Notes
+
+- Support from JDK17 and JDK17+
+- Support Spring Boot 3.X.X version
+
+- Use 2.X.X version of kafka-kryo library if you are use JDK17 and above version and Spring Boot 3.X.X
+- Use 2.X.X version of kafka-protobuf library if you are use JDK17 and above version and Spring Boot 3.X.X
+- Use 2.X.X version of kafka-smile library if you are use JDK17 and above version and Spring Boot 3.X.X
+- Use 3.X.X version of spring-kafka library if you are use JDK17 and above version and Spring Boot 3.X.X
+
+
 # How to Use Kafka
 
 Autowire `KafkaConsumerBuilder` wherever you want to build a new kafka consumer.
