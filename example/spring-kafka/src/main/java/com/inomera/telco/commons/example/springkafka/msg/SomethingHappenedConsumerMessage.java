@@ -13,4 +13,9 @@ public class SomethingHappenedConsumerMessage extends AbstractMessage {
     public SomethingHappenedConsumerMessage(String txKey) {
         super(txKey);
     }
+
+    @Override
+    public Integer getId() {
+        return 101;
+    }
 }

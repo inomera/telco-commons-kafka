@@ -20,10 +20,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Component
 @RequiredArgsConstructor
-public class SomeSender {
-    private static final Logger LOG = LoggerFactory.getLogger(SomeSender.class);
+public class KryoSomeSender {
+    private static final Logger LOG = LoggerFactory.getLogger(KryoSomeSender.class);
 
-    private final KafkaMessagePublisher<Serializable> kafkaMessagePublisher;
+    private final KafkaMessagePublisher<Serializable> stringKafkaMessagePublisher;
     public final AtomicInteger atomicInteger = new AtomicInteger(1);
     public final AtomicInteger bulkAtomicInteger = new AtomicInteger(1);
 
@@ -34,13 +34,13 @@ public class SomeSender {
 	    ThreadUtils.sleepQuietly(3000);
 	    final int value = atomicInteger.incrementAndGet();
 	    if (value % 3 == 0) {
-		kafkaMessagePublisher.send("mouse-event.click", new SomethingHappenedMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
+		stringKafkaMessagePublisher.send("mouse-event.click", new SomethingHappenedMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
 	    } else if (value % 3 == 1) {
-		kafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedBeautifullyMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
+		stringKafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedBeautifullyMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
 	    } else if (value % 3 == 2) {
-		kafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedConsumerMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
+		stringKafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedConsumerMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
 	    } else {
-		kafkaMessagePublisher.send("example.unlistened-topic", new UnListenedMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
+		stringKafkaMessagePublisher.send("example.unlistened-topic", new UnListenedMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
 	    }
 	}
 	LOG.info("Sent event");
@@ -51,10 +51,10 @@ public class SomeSender {
 	LOG.info("Sending event");
 	for (int i = 0; i < 1; i++) {
 	    final int value = bulkAtomicInteger.incrementAndGet();
-	    kafkaMessagePublisher.send("mouse-bulk-event.click", new SomethingHappenedMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
-	    kafkaMessagePublisher.send("mouse-bulk-event.dblclick", new SomethingHappenedBeautifullyMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
-	    kafkaMessagePublisher.send("mouse-bulk-event.dblclick", new SomethingHappenedConsumerMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
-	    kafkaMessagePublisher.send("bulk-example.unlistened-topic", new UnListenedMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
+	    stringKafkaMessagePublisher.send("mouse-bulk-event.click", new SomethingHappenedMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
+	    stringKafkaMessagePublisher.send("mouse-bulk-event.dblclick", new SomethingHappenedBeautifullyMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
+	    stringKafkaMessagePublisher.send("mouse-bulk-event.dblclick", new SomethingHappenedConsumerMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
+	    stringKafkaMessagePublisher.send("bulk-example.unlistened-topic", new UnListenedMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
 	}
 	LOG.info("Sent event");
     }

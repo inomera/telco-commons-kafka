@@ -8,4 +8,6 @@ import java.io.Serializable;
  * @author Serdar Kuzucu
  */
 public interface Message extends Serializable, PartitionKeyAware {
+
+    Integer getId();
 }
