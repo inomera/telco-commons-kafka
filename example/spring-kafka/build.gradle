@@ -26,9 +26,11 @@ configurations {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation "com.esotericsoftware:kryo:4.0.1"
+    implementation 'com.google.guava:guava:28.2-jre'
 
-    implementation project(":spring-kafka")
-    implementation project(":kafka-kryo")
+    compile project(":spring-kafka")
+    compile project(":kafka-kryo")
+    compile project(":kafka-json")
 
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")

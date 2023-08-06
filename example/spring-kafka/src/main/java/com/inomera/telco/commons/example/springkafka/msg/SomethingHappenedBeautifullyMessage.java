@@ -19,5 +19,10 @@ public class SomethingHappenedBeautifullyMessage extends SomethingHappenedMessag
     public SomethingHappenedBeautifullyMessage(String txKey) {
         super(txKey);
     }
+
+    @Override
+    public Integer getId() {
+        return 100;
+    }
 }
 

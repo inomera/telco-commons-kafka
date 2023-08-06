@@ -6,6 +6,9 @@ project(':spring-kafka-example').projectDir = new File('example/spring-kafka')
 include ':spring-kafka'
 project(':spring-kafka').projectDir = new File('kafka/spring-kafka')
 
+include ':kafka-json'
+project(':kafka-json').projectDir = new File('kafka/json')
+
 include ':kafka-kryo'
 project(':kafka-kryo').projectDir = new File('kafka/kryo')
 

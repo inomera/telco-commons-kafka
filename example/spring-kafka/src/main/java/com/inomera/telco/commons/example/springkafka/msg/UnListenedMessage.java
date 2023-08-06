@@ -13,4 +13,9 @@ public class UnListenedMessage extends AbstractMessage {
     public UnListenedMessage(String txKey) {
         super(txKey);
     }
+
+    @Override
+    public Integer getId() {
+        return 99;
+    }
 }

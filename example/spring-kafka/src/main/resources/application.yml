@@ -21,6 +21,22 @@ kafka-producers:
       max.block.ms=190000
       reconnect.backoff.ms=100
       reconnect.backoff.max.ms=9223372036854775806
+  json:
+    properties: |
+      max.request.size=15728640
+      bootstrap.servers=localhost:9092
+      enable.idempotence=true
+      retries=2147483647
+      max.in.flight.requests.per.connection=1
+      acks=all
+      linger.ms=10
+      metadata.max.age.ms=10000
+      compression.type=lz4
+      retry.backoff.ms=50
+      request.timeout.ms=180000
+      max.block.ms=190000
+      reconnect.backoff.ms=100
+      reconnect.backoff.max.ms=9223372036854775806
 kafka-consumers:
   default:
     properties: |-
@@ -41,6 +57,24 @@ kafka-consumers:
       poller.thread.checker.initialDelaySec=5
       poller.thread.checker.retryAsSec=30
   retry:
+    properties: |-
+      bootstrap.servers=localhost:9092
+      metadata.max.age.ms=10000
+      enable.auto.commit=false
+      auto.offset.reset=earliest
+      heartbeat.interval.ms=10000
+      request.timeout.ms=31000
+      session.timeout.ms=30000
+      max.poll.records=100
+      reconnect.backoff.ms=5000
+      reconnect.backoff.max.ms=9223372036854775806
+    number-of-invoker-threads: 2
+    offset-commit-strategy: AT_LEAST_ONCE_BULK
+    pollerThreadProperties: |-
+      poller.thread.checker.active=true
+      poller.thread.checker.initialDelaySec=5
+      poller.thread.checker.retryAsSec=30
+  json:
     properties: |-
       bootstrap.servers=localhost:9092
       metadata.max.age.ms=10000

@@ -19,8 +19,8 @@ import static com.inomera.telco.commons.springkafka.annotation.KafkaListener.RET
  * @author Serdar Kuzucu
  */
 @Component
-public class SomeListener {
-    private static final Logger LOG = LoggerFactory.getLogger(SomeListener.class);
+public class KryoSomeListener {
+    private static final Logger LOG = LoggerFactory.getLogger(KryoSomeListener.class);
     private static final MessageContextHolder messageHolder = new MessageContextHolder();
 
     @KafkaListener(groupId = "event-logger", topics = {"mouse-event.click", "mouse-event.dblclick"}, includeSubclasses = true, retry = RETRY_IN_MEMORY_TASK, retryCount = 5, retryBackoffTime = 5000L)
