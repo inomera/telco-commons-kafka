@@ -1,6 +1,6 @@
 logging:
   pattern:
-    console: '%clr(%d{HH:mm:ss.SSS}){blue} %clr(%-5p) %clr([%15t]){cyan} %clr(:){red} %clr(%m){faint}%n'
+    console: '%clr(%d{HH:mm:ss.SSS}){blue} %clr(%-5p) %clr([%15t]){cyan} %clr(:){red} [%X{logTrackId}]  %clr(%m){faint}%n'
 server:
   port: 8080
 

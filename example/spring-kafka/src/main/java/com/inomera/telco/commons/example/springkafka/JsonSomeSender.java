@@ -9,7 +9,10 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static com.inomera.telco.commons.example.springkafka.KafkaMdcInterceptor.LOG_TRACK_KEY_FIELD;
 
 
 @Component
@@ -26,7 +29,10 @@ public class JsonSomeSender {
 	LOG.info("Sending event");
 	for (int i = 0; i < 4; i++) {
 	    final int value = atomicInteger.incrementAndGet();
-	    jsonKafkaMessagePublisher.send("user-events", new SomethingHappenedBeautifullyMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
+	    final String txKey = MdcUtils.generateNewLogTrackKey();
+	    final var data = new SomethingHappenedBeautifullyMessage(value + "-" + txKey);
+	    final Map<String, String> headers = Map.of(LOG_TRACK_KEY_FIELD, txKey);
+	    jsonKafkaMessagePublisher.send("user-events", headers, data);
 	}
 	LOG.info("Sent event");
     }

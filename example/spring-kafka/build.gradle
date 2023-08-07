@@ -28,9 +28,9 @@ dependencies {
     implementation "com.esotericsoftware:kryo:4.0.1"
     implementation 'com.google.guava:guava:28.2-jre'
 
-    compile project(":spring-kafka")
-    compile project(":kafka-kryo")
-    compile project(":kafka-json")
+    implementation project(":spring-kafka")
+    implementation project(":kafka-kryo")
+    implementation project(":kafka-json")
 
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")

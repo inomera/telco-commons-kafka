@@ -4,6 +4,7 @@ import com.inomera.telco.commons.springkafka.annotation.KafkaListener;
 import com.inomera.telco.commons.springkafka.consumer.invoker.fault.ListenerMethodNotFoundHandler;
 import com.inomera.telco.commons.springkafka.consumer.invoker.fault.LoggingListenerMethodNotFoundHandler;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.header.Headers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +53,7 @@ public class MethodInvoker {
 		final long invokerMethodCount = listenerMethodRegistry
 			.getListenerMethods(groupId, record.topic(), msg.getClass())
 			.peek(listenerMethod -> {
-			    final KafkaListener kafkaListener = invokeListenerMethod(listenerMethod, msg, record.topic());
+			    final KafkaListener kafkaListener = invokeListenerMethod(listenerMethod, msg, record);
 			    invokerResult.setKafkaListener(kafkaListener);
 			})
 			.count();
@@ -81,7 +82,7 @@ public class MethodInvoker {
 		final long invokerMethodCount = listenerMethodRegistry
 			.getListenerMethods(groupId, firstRecord.topic(), Set.class)
 			.peek(listenerMethod -> {
-			    final KafkaListener kafkaListener = invokeListenerMethods(listenerMethod, messages, firstRecord.topic());
+			    final KafkaListener kafkaListener = invokeListenerMethods(listenerMethod, messages, firstRecord);
 			    invokerResult.setKafkaListener(kafkaListener);
 			})
 			.count();
@@ -96,44 +97,44 @@ public class MethodInvoker {
 	}, invokerResult);
     }
 
-    private KafkaListener invokeListenerMethod(ListenerMethod listenerMethod, Object message, String topic) {
+    private KafkaListener invokeListenerMethod(ListenerMethod listenerMethod, Object message, ConsumerRecord<String, ?> record) {
 	try {
-	    invokeBeforeInterceptors(message);
-	    return listenerMethod.invoke(message, topic);
+	    invokeBeforeInterceptors(message, record.headers());
+	    return listenerMethod.invoke(message, record.topic());
 	} catch (Exception e) {
 	    LOG.error("Error processing kafka message [{}]", message, e);
 	    return null;
 	} finally {
-	    invokeAfterInterceptors(message);
+	    invokeAfterInterceptors(message, record.headers());
 	}
     }
 
-    private KafkaListener invokeListenerMethods(ListenerMethod listenerMethod, Set<Object> messages, String topic) {
+    private KafkaListener invokeListenerMethods(ListenerMethod listenerMethod, Set<Object> messages, ConsumerRecord<String, ?> record) {
 	try {
-	    invokeBeforeInterceptors(messages);
-	    return listenerMethod.invoke(messages, topic);
+	    invokeBeforeInterceptors(messages, record.headers());
+	    return listenerMethod.invoke(messages, record.topic());
 	} catch (Exception e) {
 	    LOG.error("Error processing kafka message [{}]", messages, e);
 	    return null;
 	} finally {
-	    invokeAfterInterceptors(messages);
+	    invokeAfterInterceptors(messages, record.headers());
 	}
     }
 
-    private void invokeBeforeInterceptors(Object message) {
-	interceptors.forEach(interceptor -> interceptor.beforeInvocation(message));
+    private void invokeBeforeInterceptors(Object message, Headers headers) {
+	interceptors.forEach(interceptor -> interceptor.beforeInvocation(message, headers));
     }
 
-    private void invokeBeforeInterceptors(Set<Object> messages) {
-	interceptors.forEach(interceptor -> interceptor.beforeInvocation(messages));
+    private void invokeBeforeInterceptors(Set<Object> messages, Headers headers) {
+	interceptors.forEach(interceptor -> interceptor.beforeInvocation(messages, headers));
     }
 
-    private void invokeAfterInterceptors(Object message) {
-	interceptors.forEach(interceptor -> interceptor.afterInvocation(message));
+    private void invokeAfterInterceptors(Object message, Headers headers) {
+	interceptors.forEach(interceptor -> interceptor.afterInvocation(message, headers));
     }
 
-    private void invokeAfterInterceptors(Set<Object> messages) {
-	interceptors.forEach(interceptor -> interceptor.afterInvocation(messages));
+    private void invokeAfterInterceptors(Set<Object> messages, Headers headers) {
+	interceptors.forEach(interceptor -> interceptor.afterInvocation(messages, headers));
     }
 
     private void invokeListenerMethodNotFoundHandler(ConsumerRecord<String, ?> record) {

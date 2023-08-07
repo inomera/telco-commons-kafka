@@ -53,6 +53,7 @@ public class KafkaJsonConfiguration {
 		.valueDeserializer(jsonKafkaDeserializer())
 		.autoPartitionPause(true)
 		.invoker()
+		.interceptor(new KafkaMdcInterceptor())
 		.unordered()
 		.dynamicNamedExecutors()
 		.configureExecutor("user-events", 1, 3, 1, TimeUnit.MINUTES)

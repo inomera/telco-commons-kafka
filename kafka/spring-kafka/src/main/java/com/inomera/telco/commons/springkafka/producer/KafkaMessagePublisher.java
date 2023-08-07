@@ -5,11 +5,17 @@ import org.apache.kafka.clients.producer.*;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.errors.InterruptException;
+import org.apache.kafka.common.header.internals.RecordHeader;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.util.SerializationUtils;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
@@ -31,6 +37,16 @@ public class KafkaMessagePublisher<V> {
         final String partitionKey = getPartitionKey(data);
         final ProducerRecord<String, V> producerRecord = new ProducerRecord<>(topicName, partitionKey, data);
         return doSend(producerRecord);
+    }
+
+    public Future<SendResult<String, V>> send(String topicName, Map<String, Object> headers, V data) {
+	final String partitionKey = getPartitionKey(data);
+	final ProducerRecord<String, V> producerRecord = new ProducerRecord<>(topicName, partitionKey, data);
+	for (Map.Entry<String, Object> header : headers.entrySet()) {
+	    final byte[] serializedHeaderValue = SerializationUtils.serialize(header.getValue());
+	    producerRecord.headers().add(new RecordHeader(header.getKey(), serializedHeaderValue));
+	}
+	return doSend(producerRecord);
     }
 
     public Future<SendResult<String, V>> send(String topicName, String key, V data) {
