@@ -1,0 +1,22 @@
+GET http://localhost:8081/stop-consume
+Accept: application/json
+
+###
+
+GET http://localhost:8081/start-consume
+Accept: application/json
+
+###
+
+GET http://localhost:8081/stop-bulk-consume
+Accept: application/json
+
+###
+
+GET http://localhost:8081/start-bulk-consume
+Accept: application/json
+
+###
+
+
+

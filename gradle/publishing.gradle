@@ -1,4 +1,3 @@
-apply plugin: 'maven'
 apply plugin: 'maven-publish'
 
 def repoUser = project.findProperty('telcoTeamUsername')
@@ -21,7 +20,7 @@ publishing {
     }
 }
 
-task sourceJar(type: Jar) {
+tasks.register('sourceJar', Jar) {
     classifier 'sources'
     from sourceSets.main.allJava
 }

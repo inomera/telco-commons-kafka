@@ -25,9 +25,9 @@ import java.util.concurrent.TimeUnit;
 @SpringBootApplication
 @EnableKafkaListeners
 @EnableScheduling
-public class SpringKafkaExampleApplication {
+public class SpringKafkaKryoExampleApplication {
     public static void main(String[] args) {
-        SpringApplication.run(SpringKafkaExampleApplication.class, args);
+        SpringApplication.run(SpringKafkaKryoExampleApplication.class, args);
     }
 
     @Bean

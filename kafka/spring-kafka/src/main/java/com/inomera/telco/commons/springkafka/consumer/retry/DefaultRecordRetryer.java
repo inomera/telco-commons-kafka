@@ -15,28 +15,28 @@ public class DefaultRecordRetryer implements RecordRetryer {
 
     @Override
     public void checkAndRetry(InvokerResult result) {
-	final KafkaListener kafkaListener = result.getKafkaListener();
-	if (kafkaListener == null) {
-	    return;
-	}
+        final KafkaListener kafkaListener = result.getKafkaListener();
+        if (kafkaListener == null) {
+            return;
+        }
 
-	if (kafkaListener != null && kafkaListener.retry() == KafkaListener.RETRY.NONE) {
-	    return;
-	}
+        if (kafkaListener.retry() == KafkaListener.RETRY.NONE) {
+            return;
+        }
 
-	final ConsumerRecord<String, ?> record = result.getRecord();
-	final String topic = record.topic();
-	if (kafkaListener != null && kafkaListener.retry() == KafkaListener.RETRY.RETRY_FROM_BROKER) {
-	    LOG.warn("before ack/commit to broker, message : {} retrying for the topic : {}, if the consumer re-start or re-subscribe another consumer in consumer group, try to process", record, topic);
-	    throw RetriableCommitFailedException.withUnderlyingMessage("Retry message offset " + record.offset() + " for topic " + topic);
-	}
-	if (kafkaListener != null && kafkaListener.retry() == KafkaListener.RETRY.RETRY_IN_MEMORY_TASK) {
-	    final RetryContext retryContext = new RetryContext();
-	    retryContext.setCount(0);
-	    retryContext.setBackoffTime(kafkaListener.retryBackoffTime());
-	    retryContext.setMaxCount(kafkaListener.retryCount());
-	    retryContext.setRetry(result);
-	    retryQueue.offer(retryContext);
-	}
+        final ConsumerRecord<String, ?> record = result.getRecord();
+        final String topic = record.topic();
+        if (kafkaListener.retry() == KafkaListener.RETRY.RETRY_FROM_BROKER) {
+            LOG.warn("before ack/commit to broker, message : {} retrying for the topic : {}, if the consumer re-start or re-subscribe another consumer in consumer group, try to process", record, topic);
+            throw new RetriableCommitFailedException("Retry message offset " + record.offset() + " for topic " + topic);
+        }
+        if (kafkaListener.retry() == KafkaListener.RETRY.RETRY_IN_MEMORY_TASK) {
+            final RetryContext retryContext = new RetryContext();
+            retryContext.setCount(0);
+            retryContext.setBackoffTime(kafkaListener.retryBackoffTime());
+            retryContext.setMaxCount(kafkaListener.retryCount());
+            retryContext.setRetry(result);
+            retryQueue.offer(retryContext);
+        }
     }
 }
