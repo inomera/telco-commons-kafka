@@ -11,10 +11,11 @@ def repoPass = project.findProperty('telcoTeamPassword')
 publishing {
     repositories {
         maven {
-            url "http://nexus.telco.inomera.com/repository/maven-releases/"
+            allowInsecureProtocol = true
+            url "https://nexus.telco.inomera.com/repository/maven-releases/"
             credentials {
-                username repoUser
-                password repoPass
+                username repoUser as String
+                password repoPass as String
             }
         }
     }
