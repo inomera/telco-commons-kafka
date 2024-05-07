@@ -76,9 +76,17 @@ public class KafkaMessagePublisher<V> {
         final CompletableFuture<SendResult<String, V>> future = new CompletableFuture<>();
 
         final Callback kafkaProducerSendCallback = (RecordMetadata metadata, Exception exception) -> {
-            LOGGER.trace("ProducerRecord: {}, Record Metadata: {}", producerRecord, metadata, exception);
-            LOGGER.error("Error publishing request. {}", producerRecord, exception);
-            future.completeExceptionally(exception);
+            try {
+                if (exception == null) {
+                    future.complete(new SendResult<>(producerRecord, metadata));
+                    LOGGER.trace("ProducerRecord: {}, Record Metadata: {}", producerRecord, metadata);
+                } else {
+                    LOGGER.error("Error publishing request. {}", producerRecord, exception);
+                    future.completeExceptionally(exception);
+                }
+            } finally {
+                closeProducerIfAvailable();
+            }
         };
 
         try {
@@ -144,10 +152,10 @@ public class KafkaMessagePublisher<V> {
     }
 
     private void closeProducerIfAvailable() {
-        if (this.producer == null) {
+        if (this.producer == null || this.transactional) {
             return;
         }
-        //this.producer.close(Duration.ofMillis(5000L));
+        this.producer.close(Duration.ofMillis(5000L));
     }
 
     private void checkTransactionIfAvailableInit() {
