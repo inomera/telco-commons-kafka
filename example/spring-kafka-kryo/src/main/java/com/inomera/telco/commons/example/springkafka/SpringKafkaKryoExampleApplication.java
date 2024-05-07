@@ -17,7 +17,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.io.Serializable;
+import java.security.SecureRandom;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
+
+import static org.apache.kafka.clients.producer.ProducerConfig.TRANSACTIONAL_ID_CONFIG;
 
 /**
  * @author Serdar Kuzucu
@@ -160,6 +164,8 @@ public class SpringKafkaKryoExampleApplication {
     @Bean
     public KafkaMessagePublisher<Serializable> stringKafkaMessagePublisher(
             KafkaProducerConfigurationProperties defaultKafkaProducerConfigurationProperties) {
-        return new KafkaMessagePublisher<>(kafkaSerializer(), defaultKafkaProducerConfigurationProperties.getProperties());
+        Properties properties = defaultKafkaProducerConfigurationProperties.getProperties();
+        properties.put(TRANSACTIONAL_ID_CONFIG, "spring-kafka-kryo-" + new SecureRandom().nextLong());
+        return new KafkaMessagePublisher<>(kafkaSerializer(), properties);
     }
 }
