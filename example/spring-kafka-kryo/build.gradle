@@ -1,0 +1,52 @@
+plugins {
+    id 'org.springframework.boot' version '2.7.12'
+    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+    id 'java'
+}
+
+apply plugin: 'io.spring.dependency-management'
+apply plugin: 'org.springframework.boot'
+
+ext {
+    set('springCloudVersion', "2021.0.3")
+    set('resilience4jVersion', '1.7.0')
+}
+
+repositories {
+    mavenCentral()
+}
+
+sourceCompatibility = JavaVersion.VERSION_17
+targetCompatibility = JavaVersion.VERSION_17
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation "com.esotericsoftware:kryo:5.0.0"
+    implementation "org.apache.kafka:kafka-clients:${versions.kafka_clients}"
+    implementation "com.google.guava:guava:33.2.0-jre"
+
+    implementation project(":spring-kafka")
+    implementation project(":kafka-kryo")
+
+    implementation("org.projectlombok:lombok")
+    annotationProcessor("org.projectlombok:lombok")
+
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${versions.jupiter}"
+    testImplementation "org.junit.jupiter:junit-jupiter-params:${versions.jupiter}"
+    testImplementation "org.junit.jupiter:junit-jupiter-engine:${versions.jupiter}"
+    testImplementation "org.mockito:mockito-core:${versions.mockito_core}"
+    testImplementation "org.mockito:mockito-junit-jupiter:${versions.mockito_jupiter}"
+    testImplementation "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}

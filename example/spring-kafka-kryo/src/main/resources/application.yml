@@ -16,27 +16,8 @@ kafka-producers:
       linger.ms=10
       metadata.max.age.ms=10000
       compression.type=lz4
-      retry.backoff.ms=50
-      request.timeout.ms=180000
-      max.block.ms=190000
-      reconnect.backoff.ms=100
-      reconnect.backoff.max.ms=9223372036854775806
-  json:
-    properties: |
-      max.request.size=15728640
-      bootstrap.servers=localhost:9092
-      enable.idempotence=true
-      retries=2147483647
-      max.in.flight.requests.per.connection=1
-      acks=all
-      linger.ms=10
-      metadata.max.age.ms=10000
-      compression.type=lz4
-      retry.backoff.ms=50
-      request.timeout.ms=180000
-      max.block.ms=190000
-      reconnect.backoff.ms=100
-      reconnect.backoff.max.ms=9223372036854775806
+      transaction.timeout.ms=10000
+
 kafka-consumers:
   default:
     properties: |-

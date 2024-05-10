@@ -1,3 +1,16 @@
+# Version Compatability
+
+Compatability Matrix
+
+| Version | JDK   | Spring  | Kafka Client | Kafka Server |
+|---------|-------|---------|--------------|--------------|
+| v2.3.x  | JDK11 | 2.7.12+ | 3.0.2 >=     | 3.0.0 >=     |
+| v2.4.x  | JDK17 | 3.1.5   | 1.1.0 >=     | 1.1.0 >=     |
+| v3.x.x  | JDK17 | 3.1.5   | 3.0.2 >=     | 3.0.0 >=     |
+|         |       |         |              |              |
+
+Try to use new versions.
+
 # About This Repo
 
 To publish a version to maven repository, 

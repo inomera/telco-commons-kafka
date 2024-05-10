@@ -3,7 +3,7 @@ package com.inomera.telco.commons.example.springkafka;
 import com.inomera.telco.commons.example.springkafka.msg.AbstractMessage;
 import com.inomera.telco.commons.example.springkafka.msg.Message;
 import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedConsumerMessage;
-import com.inomera.telco.commons.lang.thread.ThreadUtils;
+import com.inomera.telco.commons.example.springkafka.util.ThreadUtils;
 import com.inomera.telco.commons.springkafka.annotation.KafkaListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,9 +11,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.Set;
 
-import static com.inomera.telco.commons.springkafka.annotation.KafkaListener.RETRY.NONE;
-import static com.inomera.telco.commons.springkafka.annotation.KafkaListener.RETRY.RETRY_FROM_BROKER;
-import static com.inomera.telco.commons.springkafka.annotation.KafkaListener.RETRY.RETRY_IN_MEMORY_TASK;
+import static com.inomera.telco.commons.springkafka.annotation.KafkaListener.RETRY.*;
+
 
 /**
  * @author Serdar Kuzucu
