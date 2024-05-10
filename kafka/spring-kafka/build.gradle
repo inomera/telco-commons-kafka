@@ -21,8 +21,8 @@ configurations {
 compileJava.dependsOn(processResources)
 
 dependencies {
-    implementation 'org.springframework:spring-core:5.3.+'
-    implementation 'org.springframework:spring-context:5.3.+'
+    implementation 'org.springframework:spring-core:5.+'
+    implementation 'org.springframework:spring-context:5.+'
 
     implementation "com.inomera.telco.commons:lang:${versions.lang}"
     implementation "org.apache.kafka:kafka-clients:${versions.kafka_clients}"
