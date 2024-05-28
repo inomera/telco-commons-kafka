@@ -131,7 +131,7 @@ public class KafkaMessagePublisher<V> {
         final CompletableFuture<SendResult<String, V>> future = new CompletableFuture<>();
 
         final Callback kafkaProducerSendCallback = (RecordMetadata metadata, Exception exception) -> {
-            LOGGER.trace("ProducerRecord: {}, Record Metadata: {}, Exception: {}", producerRecord, metadata, exception.getMessage(), exception);
+            LOGGER.trace("ProducerRecord: {}, Record Metadata: {}, Exception: {}", producerRecord, metadata, exception != null ? exception.getMessage() : "", exception);
             LOGGER.error("Error publishing request. {}", producerRecord, exception);
             future.completeExceptionally(exception);
         };
