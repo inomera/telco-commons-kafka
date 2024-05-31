@@ -144,8 +144,6 @@ public class KafkaMessagePublisher<V> {
         } catch (Exception e) {
             LOGGER.error("Exception publishing request. {}", producerRecord, e);
             future.completeExceptionally(e);
-        } finally {
-            closeProducerIfAvailable(false);
         }
 
         LOGGER.trace("Sent: {}", producerRecord);
