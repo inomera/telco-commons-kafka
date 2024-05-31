@@ -85,20 +85,20 @@ public class KafkaMessagePublisher<V> {
                     future.completeExceptionally(exception);
                 }
             } finally {
-                closeProducerIfAvailable();
+                closeProducerIfAvailable(transactional);
             }
         };
 
+        LOGGER.debug("beginTransaction()");
         try {
-            LOGGER.debug("beginTransaction()");
-            try {
-                this.producer.beginTransaction();
-            } catch (RuntimeException e) {
-                LOGGER.error("beginTransaction failed: ", e);
-                throw e;
-            } finally {
-                closeProducerIfAvailable();
-            }
+            this.producer.beginTransaction();
+        } catch (RuntimeException e) {
+            LOGGER.error("beginTransaction failed: ", e);
+            closeProducerIfAvailable(false);
+            throw e;
+        }
+
+        try {
             producer.send(producerRecord, kafkaProducerSendCallback);
             try {
                 producer.commitTransaction();
@@ -117,7 +117,7 @@ public class KafkaMessagePublisher<V> {
                 e.addSuppressed(abortException);
             }
         } finally {
-            closeProducerIfAvailable();
+            closeProducerIfAvailable(false);
         }
 
         LOGGER.trace("Sent: {}", producerRecord);
@@ -151,8 +151,8 @@ public class KafkaMessagePublisher<V> {
         return future;
     }
 
-    private void closeProducerIfAvailable() {
-        if (this.producer == null || this.transactional) {
+    private void closeProducerIfAvailable(boolean inTx) {
+        if (this.producer == null || inTx) {
             return;
         }
         this.producer.close(Duration.ofMillis(5000L));
