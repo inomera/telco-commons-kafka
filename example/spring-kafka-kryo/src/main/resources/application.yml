@@ -1,3 +1,14 @@
+spring:
+  docker:
+    compose:
+      lifecycle-management: start_and_stop
+      start:
+        command: up
+      stop:
+        command: down
+        timeout: 10s
+      file: docker-compose.yml
+
 logging:
   pattern:
     console: '%clr(%d{HH:mm:ss.SSS}){blue} %clr(%-5p) %clr([%15t]){cyan} %clr(:){red} [%X{logTrackId}]  %clr(%m){faint}%n'
@@ -8,7 +19,7 @@ kafka-producers:
   default:
     properties: |
       max.request.size=15728640
-      bootstrap.servers=localhost:9092
+      bootstrap.servers=localhost:10000,localhost:20000,localhost:30000
       enable.idempotence=true
       retries=2147483647
       max.in.flight.requests.per.connection=1
@@ -21,7 +32,7 @@ kafka-producers:
 kafka-consumers:
   default:
     properties: |-
-      bootstrap.servers=localhost:9092
+      bootstrap.servers=localhost:10000,localhost:20000,localhost:30000
       metadata.max.age.ms=10000
       enable.auto.commit=false
       auto.offset.reset=earliest
@@ -39,7 +50,7 @@ kafka-consumers:
       poller.thread.checker.retryAsSec=30
   retry:
     properties: |-
-      bootstrap.servers=localhost:9092
+      bootstrap.servers=localhost:10000,localhost:20000,localhost:30000
       metadata.max.age.ms=10000
       enable.auto.commit=false
       auto.offset.reset=earliest
@@ -57,7 +68,7 @@ kafka-consumers:
       poller.thread.checker.retryAsSec=30
   json:
     properties: |-
-      bootstrap.servers=localhost:9092
+      bootstrap.servers=localhost:10000,localhost:20000,localhost:30000
       metadata.max.age.ms=10000
       enable.auto.commit=false
       auto.offset.reset=earliest
