@@ -6,22 +6,22 @@ import com.inomera.telco.commons.kafkakryo.*;
 import com.inomera.telco.commons.springkafka.annotation.EnableKafkaListeners;
 import com.inomera.telco.commons.springkafka.builder.KafkaConsumerBuilder;
 import com.inomera.telco.commons.springkafka.consumer.*;
-import com.inomera.telco.commons.springkafka.producer.KafkaMessagePublisher;
+import com.inomera.telco.commons.springkafka.producer.KafkaTransactionalMessagePublisher;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Scope;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.SchedulingConfigurer;
+import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 
 import java.io.Serializable;
-import java.security.SecureRandom;
 import java.util.Properties;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static org.apache.kafka.clients.producer.ProducerConfig.TRANSACTIONAL_ID_CONFIG;
-import static org.springframework.beans.factory.config.ConfigurableBeanFactory.SCOPE_PROTOTYPE;
-import static org.springframework.context.annotation.ScopedProxyMode.TARGET_CLASS;
 
 /**
  * @author Serdar Kuzucu
@@ -29,7 +29,7 @@ import static org.springframework.context.annotation.ScopedProxyMode.TARGET_CLAS
 @SpringBootApplication
 @EnableKafkaListeners
 @EnableScheduling
-public class SpringKafkaKryoExampleApplication {
+public class SpringKafkaKryoExampleApplication implements SchedulingConfigurer {
     public static void main(String[] args) {
         SpringApplication.run(SpringKafkaKryoExampleApplication.class, args);
     }
@@ -162,12 +162,21 @@ public class SpringKafkaKryoExampleApplication {
                 .buildBulk();
     }
 
-    @Bean(destroyMethod = "close")
-    @Scope(value = SCOPE_PROTOTYPE, proxyMode = TARGET_CLASS)
-    public KafkaMessagePublisher<Serializable> stringKafkaMessagePublisher(
+    @Bean
+    public KafkaTransactionalMessagePublisher<Serializable> stringKafkaMessagePublisher(
             KafkaProducerConfigurationProperties defaultKafkaProducerConfigurationProperties) {
         Properties properties = defaultKafkaProducerConfigurationProperties.getProperties();
-        properties.put(TRANSACTIONAL_ID_CONFIG, "spring-kafka-kryo-" + new SecureRandom().nextLong());
-        return new KafkaMessagePublisher<>(kafkaSerializer(), properties);
+        properties.put(TRANSACTIONAL_ID_CONFIG, "spring-kafka-kryo-");
+        return new KafkaTransactionalMessagePublisher<>(kafkaSerializer(), properties);
+    }
+
+    @Override
+    public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
+        taskRegistrar.setScheduler(taskExecutor());
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    public ScheduledExecutorService taskExecutor() {
+        return Executors.newScheduledThreadPool(16);
     }
 }

@@ -1,9 +1,8 @@
 package com.inomera.telco.commons.springkafka.producer;
 
 import com.inomera.telco.commons.springkafka.PartitionKeyAware;
-import org.apache.commons.lang3.StringUtils;
+import lombok.Getter;
 import org.apache.kafka.clients.producer.*;
-import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.errors.InterruptException;
@@ -11,8 +10,9 @@ import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 
-import java.time.Duration;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
@@ -22,32 +22,25 @@ import java.util.concurrent.Future;
  * @author Ramazan Karakaya
  */
 public class KafkaMessagePublisher<V> {
+    private static final String TRANSACTIONAL_PRODUCERS_ARE_NOT_SUPPORTED = "Transactional producers are not supported";
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaMessagePublisher.class);
 
-    private Producer<String, V> producer;
-    private boolean transactional;
+    private final Producer<String, V> producer;
 
     public KafkaMessagePublisher(Serializer<V> valueSerializer, Properties properties) {
+        Assert.isTrue(nonTransactional(properties), TRANSACTIONAL_PRODUCERS_ARE_NOT_SUPPORTED);
         this.producer = new KafkaProducer<>(properties, new StringSerializer(), valueSerializer);
-        this.transactional = StringUtils.isNotBlank(properties.getProperty(ProducerConfig.TRANSACTIONAL_ID_CONFIG, StringUtils.EMPTY));
-        checkTransactionIfAvailableInit();
-    }
-
-    public KafkaMessagePublisher(Serializer<V> valueSerializer, Properties properties, boolean transactional) {
-        this.producer = new KafkaProducer<>(properties, new StringSerializer(), valueSerializer);
-        this.transactional = transactional;
-        checkTransactionIfAvailableInit();
     }
 
     public Future<SendResult<String, V>> send(String topicName, V data) {
         final String partitionKey = getPartitionKey(data);
         final ProducerRecord<String, V> producerRecord = new ProducerRecord<>(topicName, partitionKey, data);
-        return this.transactional ? doSendWithTransaction(producerRecord) : doSend(producerRecord);
+        return doSend(producerRecord);
     }
 
     public Future<SendResult<String, V>> send(String topicName, String key, V data) {
         final ProducerRecord<String, V> producerRecord = new ProducerRecord<>(topicName, key, data);
-        return this.transactional ? doSendWithTransaction(producerRecord) : doSend(producerRecord);
+        return doSend(producerRecord);
     }
 
     private String getPartitionKey(V data) {
@@ -66,63 +59,8 @@ public class KafkaMessagePublisher<V> {
         close();
     }
 
-    protected void close() {
+    public void close() {
         producer.close();
-    }
-
-    private Future<SendResult<String, V>> doSendWithTransaction(final ProducerRecord<String, V> producerRecord) {
-        LOGGER.trace("Sending: {}", producerRecord);
-
-        final CompletableFuture<SendResult<String, V>> future = new CompletableFuture<>();
-
-        final Callback kafkaProducerSendCallback = (RecordMetadata metadata, Exception exception) -> {
-            try {
-                if (exception == null) {
-                    future.complete(new SendResult<>(producerRecord, metadata));
-                    LOGGER.trace("ProducerRecord: {}, Record Metadata: {}", producerRecord, metadata);
-                } else {
-                    LOGGER.error("Error publishing request. {}", producerRecord, exception);
-                    future.completeExceptionally(exception);
-                }
-            } finally {
-                closeProducerIfAvailable(transactional);
-            }
-        };
-
-        LOGGER.debug("beginTransaction()");
-        try {
-            this.producer.beginTransaction();
-        } catch (RuntimeException e) {
-            LOGGER.error("beginTransaction failed: ", e);
-            closeProducerIfAvailable(false);
-            throw e;
-        }
-
-        try {
-            producer.send(producerRecord, kafkaProducerSendCallback);
-            try {
-                producer.commitTransaction();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        } catch (InterruptException e) {
-            LOGGER.info("Producer is interrupted and not able to send message {}", producerRecord);
-            future.completeExceptionally(e);
-        } catch (Exception e) {
-            LOGGER.error("Exception publishing request. {}", producerRecord, e);
-            future.completeExceptionally(e);
-            try {
-                producer.abortTransaction();
-            } catch (Exception abortException) {
-                e.addSuppressed(abortException);
-            }
-        } finally {
-            closeProducerIfAvailable(false);
-        }
-
-        LOGGER.trace("Sent: {}", producerRecord);
-
-        return future;
     }
 
     private Future<SendResult<String, V>> doSend(final ProducerRecord<String, V> producerRecord) {
@@ -131,9 +69,13 @@ public class KafkaMessagePublisher<V> {
         final CompletableFuture<SendResult<String, V>> future = new CompletableFuture<>();
 
         final Callback kafkaProducerSendCallback = (RecordMetadata metadata, Exception exception) -> {
-            LOGGER.trace("ProducerRecord: {}, Record Metadata: {}, Exception: {}", producerRecord, metadata, exception != null ? exception.getMessage() : "", exception);
-            LOGGER.error("Error publishing request. {}", producerRecord, exception);
-            future.completeExceptionally(exception);
+            LOGGER.trace("ProducerRecord: {}, Record Metadata: {}", producerRecord, metadata, exception);
+            if (exception == null) {
+                future.complete(new SendResult<>(producerRecord, metadata));
+            } else {
+                LOGGER.error("Error publishing request. {}", producerRecord, exception);
+                future.completeExceptionally(exception);
+            }
         };
 
         try {
@@ -151,31 +93,7 @@ public class KafkaMessagePublisher<V> {
         return future;
     }
 
-    private void closeProducerIfAvailable(boolean inTx) {
-        if (this.producer == null || inTx) {
-            return;
-        }
-        this.producer.close(Duration.ofMillis(5000L));
-    }
-
-    private void checkTransactionIfAvailableInit() {
-        if (!this.transactional) {
-            return;
-        }
-        try {
-            this.producer.initTransactions();
-        } catch (RuntimeException ex) {
-            try {
-                this.producer.close(Duration.ofMillis(30000L));
-            } catch (RuntimeException re) {
-                KafkaException ke = new KafkaException("initTransactions() failed and then close() failed", ex);
-                ke.addSuppressed(re);
-                throw ke;
-            }
-            throw new KafkaException("initTransactions() failed", ex);
-        }
-    }
-
+    @Getter
     public static class SendResult<K, V> {
         private final ProducerRecord<K, V> producerRecord;
         private final RecordMetadata recordMetadata;
@@ -184,13 +102,10 @@ public class KafkaMessagePublisher<V> {
             this.producerRecord = producerRecord;
             this.recordMetadata = recordMetadata;
         }
+    }
 
-        public ProducerRecord<K, V> getProducerRecord() {
-            return this.producerRecord;
-        }
-
-        public RecordMetadata getRecordMetadata() {
-            return this.recordMetadata;
-        }
+    private boolean nonTransactional(Properties properties) {
+        String transactionalId = (String) properties.get(ProducerConfig.TRANSACTIONAL_ID_CONFIG);
+        return !StringUtils.hasText(transactionalId);
     }
 }
