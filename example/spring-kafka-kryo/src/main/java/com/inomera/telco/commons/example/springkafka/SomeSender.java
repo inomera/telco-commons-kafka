@@ -5,7 +5,7 @@ import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedConsum
 import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedMessage;
 import com.inomera.telco.commons.example.springkafka.msg.UnListenedMessage;
 import com.inomera.telco.commons.example.springkafka.util.ThreadUtils;
-import com.inomera.telco.commons.springkafka.producer.KafkaMessagePublisher;
+import com.inomera.telco.commons.springkafka.producer.KafkaTransactionalMessagePublisher;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class SomeSender {
     private static final Logger LOG = LoggerFactory.getLogger(SomeSender.class);
 
-    private final KafkaMessagePublisher<Serializable> kafkaMessagePublisher;
+    private final KafkaTransactionalMessagePublisher<Serializable> kafkaMessagePublisher;
     public final AtomicInteger atomicInteger = new AtomicInteger(1);
     public final AtomicInteger bulkAtomicInteger = new AtomicInteger(1);
 
