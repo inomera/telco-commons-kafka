@@ -1,5 +1,6 @@
 package com.inomera.telco.commons.springkafka.producer;
 
+import com.inomera.telco.commons.springkafka.util.ClientIdGenerator;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -82,7 +83,8 @@ public class DefaultKafkaProducerFactory<V> implements ProducerFactory<V>, Dispo
     private Producer<String, V> doCreateProducer(String txIdPrefix) {
         this.globalLock.lock();
         try {
-            return createTransactionalProducer(txIdPrefix);
+            final String clientId = ClientIdGenerator.getContainerId(txIdPrefix).toString();
+            return createTransactionalProducer(clientId);
         } finally {
             this.globalLock.unlock();
         }
@@ -117,8 +119,6 @@ public class DefaultKafkaProducerFactory<V> implements ProducerFactory<V>, Dispo
 
     private CloseSafeProducer<String, V> doCreateTxProducer(String prefix, String suffix,
                                                             BiPredicate<CloseSafeProducer<String, V>, Duration> remover) {
-
-
         Producer<String, V> newProducer = createRawProducer(prefix + suffix);
         try {
             newProducer.initTransactions();

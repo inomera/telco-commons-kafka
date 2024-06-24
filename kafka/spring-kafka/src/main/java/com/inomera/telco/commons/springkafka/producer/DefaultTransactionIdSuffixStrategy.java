@@ -45,7 +45,7 @@ public class DefaultTransactionIdSuffixStrategy implements TransactionIdSuffixSt
      * @throws NoProducerAvailableException if caching is enabled and no suffixes are available.
      */
     @Override
-    public String acquireSuffix(String txIdPrefix) {
+    public synchronized String acquireSuffix(String txIdPrefix) {
         Assert.notNull(txIdPrefix, "'txIdPrefix' must not be null");
         BlockingQueue<String> cache = getSuffixCache(txIdPrefix);
         if (cache == null) {

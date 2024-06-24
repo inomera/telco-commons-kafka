@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
  * @author Serdar Kuzucu
  */
 public class ThreadPoolExecutorUtils {
+
     public static void closeGracefully(ThreadPoolExecutor ex, Logger log, String exName) {
         if (ex != null) {
             log.info("{} executor is shutting down. please wait..", exName);

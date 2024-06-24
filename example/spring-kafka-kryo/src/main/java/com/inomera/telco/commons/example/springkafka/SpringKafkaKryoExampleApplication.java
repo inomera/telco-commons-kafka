@@ -16,7 +16,6 @@ import org.springframework.scheduling.annotation.SchedulingConfigurer;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 
 import java.io.Serializable;
-import java.security.SecureRandom;
 import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -97,7 +96,6 @@ public class SpringKafkaKryoExampleApplication implements SchedulingConfigurer {
     @Bean
     public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder,
                                          KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties) {
-
         return builder.properties(defaultKafkaConsumerConfigurationProperties.getProperties())
                 .groupId("event-logger")
                 .topics("mouse-event.click", "mouse-event.dblclick", "example.unlistened-topic")
@@ -143,7 +141,6 @@ public class SpringKafkaKryoExampleApplication implements SchedulingConfigurer {
     @Bean("bulkRetryConsumer")
     public KafkaMessageConsumer bulkRetryConsumer(KafkaConsumerBuilder builder,
                                                   KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties) {
-
         return builder.properties(defaultKafkaConsumerConfigurationProperties.getProperties())
                 .groupId("retry-bulk-event-logger")
                 .topics("mouse-bulk-event.click", "mouse-bulk-event.dblclick", "bulk-example.unlistened-topic")
@@ -163,7 +160,7 @@ public class SpringKafkaKryoExampleApplication implements SchedulingConfigurer {
                 .buildBulk();
     }
 
-    @Bean
+    @Bean(destroyMethod = "destroy")
     public KafkaTransactionalMessagePublisher<Serializable> stringKafkaMessagePublisher(
             KafkaProducerConfigurationProperties defaultKafkaProducerConfigurationProperties) {
         Properties properties = defaultKafkaProducerConfigurationProperties.getProperties();
