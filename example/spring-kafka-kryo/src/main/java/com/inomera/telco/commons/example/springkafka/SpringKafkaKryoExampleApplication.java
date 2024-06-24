@@ -96,7 +96,6 @@ public class SpringKafkaKryoExampleApplication implements SchedulingConfigurer {
     @Bean
     public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder,
                                          KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties) {
-
         return builder.properties(defaultKafkaConsumerConfigurationProperties.getProperties())
                 .groupId("event-logger")
                 .topics("mouse-event.click", "mouse-event.dblclick", "example.unlistened-topic")
@@ -162,11 +161,11 @@ public class SpringKafkaKryoExampleApplication implements SchedulingConfigurer {
                 .buildBulk();
     }
 
-    @Bean
+    @Bean(destroyMethod = "destroy")
     public KafkaTransactionalMessagePublisher<Serializable> stringKafkaMessagePublisher(
             KafkaProducerConfigurationProperties defaultKafkaProducerConfigurationProperties) {
         Properties properties = defaultKafkaProducerConfigurationProperties.getProperties();
-        properties.put(TRANSACTIONAL_ID_CONFIG, "spring-kafka-kryo-");
+        properties.put(TRANSACTIONAL_ID_CONFIG, "spring-kafka-kryo");
         return new KafkaTransactionalMessagePublisher<>(kafkaSerializer(), properties);
     }
 

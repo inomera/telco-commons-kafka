@@ -112,7 +112,7 @@ public class SpringKafkaProtobufExampleApplication {
         return new EventPublisher(kafkaPublisher);
     }
 
-    @Bean
+    @Bean(destroyMethod = "close")
     public KafkaMessagePublisher<? super GeneratedMessageV3> kafkaPublisher(
             KafkaProducerConfigurationProperties defaultKafkaProducerConfigurationProperties,
             KafkaProtobufSerializer kafkaSerializer) {

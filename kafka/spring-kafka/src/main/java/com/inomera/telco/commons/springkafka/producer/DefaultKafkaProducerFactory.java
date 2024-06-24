@@ -1,5 +1,6 @@
 package com.inomera.telco.commons.springkafka.producer;
 
+import com.inomera.telco.commons.springkafka.util.ClientIdGenerator;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -82,7 +83,8 @@ public class DefaultKafkaProducerFactory<V> implements ProducerFactory<V>, Dispo
     private Producer<String, V> doCreateProducer(String txIdPrefix) {
         this.globalLock.lock();
         try {
-            return createTransactionalProducer(txIdPrefix);
+            final String clientId = ClientIdGenerator.getContainerId(txIdPrefix).toString();
+            return createTransactionalProducer(clientId);
         } finally {
             this.globalLock.unlock();
         }
@@ -117,8 +119,6 @@ public class DefaultKafkaProducerFactory<V> implements ProducerFactory<V>, Dispo
 
     private CloseSafeProducer<String, V> doCreateTxProducer(String prefix, String suffix,
                                                             BiPredicate<CloseSafeProducer<String, V>, Duration> remover) {
-
-
         Producer<String, V> newProducer = createRawProducer(prefix + suffix);
         try {
             newProducer.initTransactions();
@@ -152,7 +152,7 @@ public class DefaultKafkaProducerFactory<V> implements ProducerFactory<V>, Dispo
             }
             BlockingQueue<CloseSafeProducer<String, V>> txIdCache = getCache(producerToRemove.getTxIdPrefix());
             if (producerToRemove.getEpoch() != this.epoch.get()
-                || (txIdCache != null && !txIdCache.contains(producerToRemove)
+                    || (txIdCache != null && !txIdCache.contains(producerToRemove)
                     && !txIdCache.offer(producerToRemove))) {
                 this.removeTransactionProducer(producerToRemove);
                 return true;
@@ -250,7 +250,7 @@ public class DefaultKafkaProducerFactory<V> implements ProducerFactory<V>, Dispo
         Object previousValue = this.properties.putIfAbsent(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
         if (Boolean.FALSE.equals(previousValue)) {
             LOGGER.debug("The '" + ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG
-                         + "' is set to false, may result in duplicate messages");
+                    + "' is set to false, may result in duplicate messages");
         }
     }
 
