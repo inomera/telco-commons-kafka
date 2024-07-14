@@ -24,85 +24,85 @@ public class KryoSomeListener {
 
     @KafkaListener(groupId = "event-logger", topics = {"mouse-event.click", "mouse-event.dblclick"}, includeSubclasses = true, retry = RETRY_IN_MEMORY_TASK, retryCount = 5, retryBackoffTime = 5000L)
     public void handle(Message message) {
-	LOG.info("handle : message={}", message);
-	ThreadUtils.sleepQuietly(300);
-	if (message instanceof SomethingHappenedConsumerMessage) {
-	    final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
-	    if (msg.getTime() % 2 == 0) {
-		LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
-		return;
-	    }
-	    throw new RuntimeException("retry test single message consumer without retry");
-	}
+        LOG.info("handle : message={}", message);
+        ThreadUtils.sleepQuietly(300);
+        if (message instanceof SomethingHappenedConsumerMessage) {
+            final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
+            if (msg.getTime() % 2 == 0) {
+                LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
+                return;
+            }
+            throw new RuntimeException("retry test single message consumer without retry");
+        }
     }
 
     @KafkaListener(groupId = "bulk-event-logger", topics = {"mouse-bulk-event.click"}, includeSubclasses = true, retry = NONE)
     public void bulkHandleClick(Set<AbstractMessage> messages) {
-	final Message message = messages.iterator().next();
-	LOG.info("handle : message={}, messageCount={}", message, messages.size());
-	ThreadUtils.sleepQuietly(300);
-	if (message instanceof SomethingHappenedConsumerMessage) {
-	    final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
-	    if (msg.getTime() % 2 == 0) {
-		LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
-		return;
-	    }
-	    throw new RuntimeException("retry test bulk message consumer without retry");
-	}
+        final Message message = messages.iterator().next();
+        LOG.info("handle : message={}, messageCount={}", message, messages.size());
+        ThreadUtils.sleepQuietly(50);
+        if (message instanceof SomethingHappenedConsumerMessage) {
+            final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
+            if (msg.getTime() % 2 == 0) {
+                LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
+                return;
+            }
+            throw new RuntimeException("retry test bulk message consumer without retry");
+        }
     }
 
     @KafkaListener(groupId = "retry-bulk-event-logger", topics = {"mouse-bulk-event.dblclick"}, includeSubclasses = true, retry = RETRY_FROM_BROKER, retryCount = 3)
     public void bulkHandleDoubleClick(Set<AbstractMessage> messages) {
-	final Message message = messages.iterator().next();
-	LOG.info("handle : message={}, messageCount={}, messageHolderSize={}", message, messages.size(), messageHolder.size());
-	for (AbstractMessage msg : messages) {
-	    if (msg == null) {
-		continue;
-	    }
-	    final String txKey = msg.getTxKey();
-	    if (messageHolder.containsKey(txKey)) {
-		LOG.warn("Duplicate key={}, msg={}", txKey, msg);
-		continue;
-	    }
-	    messageHolder.put(txKey, msg);
-	}
+        final Message message = messages.iterator().next();
+        LOG.info("handle : message={}, messageCount={}, messageHolderSize={}", message, messages.size(), messageHolder.size());
+        for (AbstractMessage msg : messages) {
+            if (msg == null) {
+                continue;
+            }
+            final String txKey = msg.getTxKey();
+            if (messageHolder.containsKey(txKey)) {
+                LOG.warn("Duplicate key={}, msg={}", txKey, msg);
+                continue;
+            }
+            messageHolder.put(txKey, msg);
+        }
 
-	ThreadUtils.sleepQuietly(2);
-	if (message instanceof SomethingHappenedConsumerMessage) {
-	    final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
-	    if (msg.getTime() % 2 == 0) {
-		LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
-		return;
-	    }
-	    throw new RuntimeException("retry test bulk message with message broker");
-	}
+        ThreadUtils.sleepQuietly(2);
+        if (message instanceof SomethingHappenedConsumerMessage) {
+            final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
+            if (msg.getTime() % 2 == 0) {
+                LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
+                return;
+            }
+            throw new RuntimeException("retry test bulk message with message broker");
+        }
     }
 
     @KafkaListener(groupId = "retry-bulk-event-logger", topics = {"mouse-bulk-event.dblclick"}, includeSubclasses = true, retry = RETRY_IN_MEMORY_TASK, retryCount = 3)
     public void bulkHandleInMemoryDoubleClick(Set<AbstractMessage> messages) {
-	final Message message = messages.iterator().next();
-	LOG.info("handle : message={}, messageCount={}, messageHolderSize={}", message, messages.size(), messageHolder.size());
-	for (AbstractMessage msg : messages) {
-	    if (msg == null) {
-		continue;
-	    }
-	    final String txKey = msg.getTxKey();
-	    if (messageHolder.containsKey(txKey)) {
-		LOG.warn("Duplicate key={}, msg={}", txKey, msg);
-		continue;
-	    }
-	    messageHolder.put(txKey, msg);
-	}
+        final Message message = messages.iterator().next();
+        LOG.info("handle : message={}, messageCount={}, messageHolderSize={}", message, messages.size(), messageHolder.size());
+        for (AbstractMessage msg : messages) {
+            if (msg == null) {
+                continue;
+            }
+            final String txKey = msg.getTxKey();
+            if (messageHolder.containsKey(txKey)) {
+                LOG.warn("Duplicate key={}, msg={}", txKey, msg);
+                continue;
+            }
+            messageHolder.put(txKey, msg);
+        }
 
-	ThreadUtils.sleepQuietly(5);
-	if (message instanceof SomethingHappenedConsumerMessage) {
-	    final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
-	    if (msg.getTime() % 2 == 0) {
-		LOG.info("Commit key={}, msg={}", msg.getTxKey(), msg);
-		return;
-	    }
-	    throw new RuntimeException("retry test bulk message with in memory retry");
-	}
+        ThreadUtils.sleepQuietly(5);
+        if (message instanceof SomethingHappenedConsumerMessage) {
+            final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
+            if (msg.getTime() % 2 == 0) {
+                LOG.info("Commit key={}, msg={}", msg.getTxKey(), msg);
+                return;
+            }
+            //throw new RuntimeException("retry test bulk message with in memory retry");
+        }
     }
 
 }
