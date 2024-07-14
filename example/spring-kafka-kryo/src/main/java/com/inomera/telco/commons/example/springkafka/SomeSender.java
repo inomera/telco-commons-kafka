@@ -36,7 +36,7 @@ public class SomeSender {
             if (value % 3 == 0) {
                 kafkaMessagePublisher.send("mouse-event.click", new SomethingHappenedMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
             } else if (value % 3 == 1) {
-                kafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedBeautifullyMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
+                kafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedBeautifullyMessage(i + "-" + TransactionKeyUtils.generateTxKey()));
             } else if (value % 3 == 2) {
                 kafkaMessagePublisher.send("mouse-event.dblclick", new SomethingHappenedConsumerMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
             } else {
@@ -46,10 +46,10 @@ public class SomeSender {
         LOG.info("Sent event");
     }
 
-    @Scheduled(fixedDelay = 1000)
+    @Scheduled(fixedDelay = 3000)
     public void publishRandomBulkText() {
         LOG.info("Sending event");
-        for (int i = 0; i < 1; i++) {
+        for (int i = 0; i < 1000; i++) {
             final int value = bulkAtomicInteger.incrementAndGet();
             kafkaMessagePublisher.send("mouse-bulk-event.click", new SomethingHappenedMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
             kafkaMessagePublisher.send("mouse-bulk-event.dblclick", new SomethingHappenedBeautifullyMessage(value + "-" + TransactionKeyUtils.generateTxKey()));
