@@ -88,9 +88,11 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
                         for (Map.Entry<TopicPartition, Set<ConsumerRecord<String, ?>>> topicPartitionSetEntry : tpRecordsMap.entrySet()) {
                             try {
                                 Set<ConsumerRecord<String, ?>> messages = topicPartitionSetEntry.getValue();
-                                LOG.trace("tp [{}] size : {}", topicPartitionSetEntry.getKey(), messages.size());
-                                partitionFutures = inProgressMessages.get(topicPartitionSetEntry.getKey());
-                                partitionFutures.add(consumerRecordHandler.handle(messages));
+                                synchronized (messages) {
+                                    LOG.trace("tp [{}] size : {}", topicPartitionSetEntry.getKey(), messages.size());
+                                    partitionFutures = inProgressMessages.get(topicPartitionSetEntry.getKey());
+                                    partitionFutures.add(consumerRecordHandler.handle(messages));
+                                }
                             } catch (Exception e) {
                                 LOG.error("Error processing kafka message for partition [{}].", topicPartitionSetEntry.getKey(), e);
                                 InterruptUtils.interruptIfInterruptedException(e);
@@ -117,22 +119,24 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
                     if (messagesFutures.isEmpty()) {
                         continue;
                     }
-                    final BulkInvokerResult lastCompleted = getLastCompletedRecord(messagesFutures);
-                    if (lastCompleted != null) {
-                        bulkRecordRetryer.checkAndRetry(lastCompleted);
-                    }
-                    if (lastCompleted != null && kafkaConsumerProperties.isAtLeastOnceSingle()) {
-                        commitOffset(lastCompleted.getRecords().iterator().next());
-                    }
-                    //check after last message filtering
-                    if (messagesFutures.isEmpty()) {
-                        if (kafkaConsumerProperties.isAtLeastOnceBulk()) {
-                            if (lastCompleted != null) {
-                                commitOffset(lastCompleted.getRecords().iterator().next());
-                            }
+                    synchronized (messagesFutures) {
+                        final BulkInvokerResult lastCompleted = getLastCompletedRecord(messagesFutures);
+                        if (lastCompleted != null) {
+                            bulkRecordRetryer.checkAndRetry(lastCompleted);
                         }
-                        LOG.trace("tpBasedMessagesFutures : {}", tpBasedMessagesFutures);
-                        toBeResume.add(tpBasedMessagesFutures.getKey());
+                        if (lastCompleted != null && kafkaConsumerProperties.isAtLeastOnceSingle()) {
+                            commitOffset(lastCompleted.getRecords().iterator().next());
+                        }
+                        //check after last message filtering
+                        if (messagesFutures.isEmpty()) {
+                            if (kafkaConsumerProperties.isAtLeastOnceBulk()) {
+                                if (lastCompleted != null) {
+                                    commitOffset(lastCompleted.getRecords().iterator().next());
+                                }
+                            }
+                            LOG.trace("tpBasedMessagesFutures : {}", tpBasedMessagesFutures);
+                            toBeResume.add(tpBasedMessagesFutures.getKey());
+                        }
                     }
                 }
                 if (!toBeResume.isEmpty()) {
@@ -194,7 +198,7 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
         }
     }
 
-    private boolean commitOffset(ConsumerRecord<String, ?> rec) {
+    private synchronized boolean commitOffset(ConsumerRecord<String, ?> rec) {
         try {
             offsetMap.clear();
             offsetMap.put(new TopicPartition(rec.topic(), rec.partition()), new OffsetAndMetadata(rec.offset() + 1));
