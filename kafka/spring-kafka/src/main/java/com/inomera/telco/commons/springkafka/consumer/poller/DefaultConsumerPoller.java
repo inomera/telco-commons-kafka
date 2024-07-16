@@ -19,6 +19,8 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -80,7 +82,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
             int pollWaitMs = 3000;
             pollLoop:
             while (running.get()) {
-                final ConsumerRecords<String, ?> records = consumer.poll(pollWaitMs);
+                final ConsumerRecords<String, ?> records = consumer.poll(Duration.of(pollWaitMs, ChronoUnit.MILLIS));
 
                 if (!records.isEmpty()) {
                     pollWaitMs = 0;
@@ -97,9 +99,11 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
                         tp = new TopicPartition(rec.topic(), rec.partition());
                         partitionFutures = inProgressMessages.get(tp);
                         try {
-                            partitionFutures.add(consumerRecordHandler.handle(rec));
-                            if (autoPartitionPause) {
-                                toBePause.add(new TopicPartition(rec.topic(), rec.partition()));
+                            synchronized (partitionFutures) {
+                                partitionFutures.add(consumerRecordHandler.handle(rec));
+                                if (autoPartitionPause) {
+                                    toBePause.add(new TopicPartition(rec.topic(), rec.partition()));
+                                }
                             }
                         } catch (Exception e) {
                             LOG.error("Error processing kafka message [{}].", rec.value(), e);
@@ -119,22 +123,24 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 
                 for (Map.Entry<TopicPartition, List<Future<InvokerResult>>> messageEntry : inProgressMessages.entrySet()) {
                     final List<Future<InvokerResult>> messageEntryValue = messageEntry.getValue();
-                    if (!messageEntryValue.isEmpty()) {
-                        final InvokerResult lastCompleted = getLastCompletedRecord(messageEntryValue);
-                        if (lastCompleted != null) {
-                            recordRetryer.checkAndRetry(lastCompleted);
-                        }
-                        if (lastCompleted != null && kafkaConsumerProperties.isAtLeastOnceSingle()) {
-                            commitOffset(lastCompleted.getRecord());
-                        }
-
-                        if (messageEntryValue.isEmpty()) {
-                            if (kafkaConsumerProperties.isAtLeastOnceBulk()) {
-                                if (lastCompleted != null) {
-                                    commitOffset(lastCompleted.getRecord());
-                                }
+                    synchronized (messageEntryValue) {
+                        if (!messageEntryValue.isEmpty()) {
+                            final InvokerResult lastCompleted = getLastCompletedRecord(messageEntryValue);
+                            if (lastCompleted != null) {
+                                recordRetryer.checkAndRetry(lastCompleted);
                             }
-                            toBeResume.add(messageEntry.getKey());
+                            if (lastCompleted != null && kafkaConsumerProperties.isAtLeastOnceSingle()) {
+                                commitOffset(lastCompleted.getRecord());
+                            }
+
+                            if (messageEntryValue.isEmpty()) {
+                                if (kafkaConsumerProperties.isAtLeastOnceBulk()) {
+                                    if (lastCompleted != null) {
+                                        commitOffset(lastCompleted.getRecord());
+                                    }
+                                }
+                                toBeResume.add(messageEntry.getKey());
+                            }
                         }
                     }
                 }
@@ -199,7 +205,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
         }
     }
 
-    private boolean commitOffset(ConsumerRecord<String, ?> rec) {
+    private synchronized boolean commitOffset(ConsumerRecord<String, ?> rec) {
         try {
             offsetMap.clear();
             offsetMap.put(new TopicPartition(rec.topic(), rec.partition()),
