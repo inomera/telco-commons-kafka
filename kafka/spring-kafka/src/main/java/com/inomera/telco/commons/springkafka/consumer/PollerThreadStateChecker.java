@@ -55,26 +55,26 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
 
         for (PollerThreadState monitoringThread : monitoringThreads) {
             if (StringUtils.equals(monitoringThread.getCurrentJvmState(), monitoringThread.getOldJvmState())) {
-                LOG.debug("PollerThreadStateChecker -> State is same :: {}", monitoringThread.toString());
+                LOG.debug("PollerThreadStateChecker -> State is same :: {}", monitoringThread);
                 continue;
             }
-            LOG.info("PollerThreadStateChecker -> State changed!! {}", monitoringThread.toString());
+            LOG.info("PollerThreadStateChecker -> State changed!! {}", monitoringThread);
             if (StringUtils.isNotBlank(monitoringThread.getCurrentJvmState())) {
                 continue;
             }
-            LOG.warn("PollerThreadStateChecker -> Thread is dead!! {}", monitoringThread.toString());
+            LOG.warn("PollerThreadStateChecker -> Thread is dead!! {}", monitoringThread);
             threadStore.getThreads().remove(monitoringThread.getThreadId());
             if (!monitoringThread.getConsumerPoller().shouldRestart()) {
                 continue;
             }
-            LOG.info("PollerThreadStateChecker -> Thread is trying to start!! {}", monitoringThread.toString());
+            LOG.info("PollerThreadStateChecker -> Thread is trying to start!! {}", monitoringThread);
             try {
                 monitoringThread.getConsumerPoller().start();
             } catch (Exception e) {
                 pollerThreadNotifier.alarm(monitoringThread.toString(), e);
                 return;
             }
-            LOG.info("PollerThreadStateChecker -> Thread started!! {}", monitoringThread.toString());
+            LOG.info("PollerThreadStateChecker -> Thread started!! {}", monitoringThread);
         }
     }
 

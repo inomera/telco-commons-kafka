@@ -9,11 +9,8 @@ import com.inomera.telco.commons.springkafka.consumer.invoker.BulkInvokerResult;
 import com.inomera.telco.commons.springkafka.consumer.retry.BulkRecordRetryer;
 import com.inomera.telco.commons.springkafka.consumer.retry.DefaultBulkRecordRetryer;
 import com.inomera.telco.commons.springkafka.util.InterruptUtils;
-import org.apache.kafka.clients.consumer.CommitFailedException;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.Deserializer;
@@ -21,24 +18,11 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 
 public class BulkConsumerPoller extends DefaultConsumerPoller {
@@ -46,278 +30,282 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final Map<TopicPartition, List<Future<BulkInvokerResult>>> inProgressMessages = new HashMap<>();
-    private final Map<TopicPartition, OffsetAndMetadata> offsetMap = new HashMap<>(1);
+    private final Map<TopicPartition, List<Future<BulkInvokerResult>>> inProgressMessages = new ConcurrentHashMap<>();
+    private final Map<TopicPartition, OffsetAndMetadata> offsetMap = new ConcurrentHashMap<>(1);
     private ThreadFactory consumerThreadFactory;
     private BulkConsumerRecordHandler consumerRecordHandler;
     private ExecutorService executorService;
     private KafkaConsumer<String, ?> consumer;
     private BulkRecordRetryer bulkRecordRetryer;
 
-    public BulkConsumerPoller(KafkaConsumerProperties kafkaConsumerProperties,
-			      Deserializer<?> valueDeserializer,
-			      boolean autoPartitionPause) {
-	super(kafkaConsumerProperties, valueDeserializer, autoPartitionPause);
+    public BulkConsumerPoller(KafkaConsumerProperties kafkaConsumerProperties, Deserializer<?> valueDeserializer, boolean autoPartitionPause) {
+        super(kafkaConsumerProperties, valueDeserializer, autoPartitionPause);
     }
 
     @Override
     public void run() {
-	try {
-	    final KafkaConsumerProperties kafkaConsumerProperties = getKafkaConsumerProperties();
-	    if (kafkaConsumerProperties.hasPatternBasedTopic()) {
-		consumer.subscribe(kafkaConsumerProperties.getTopicPattern(), this);
-	    } else {
-		consumer.subscribe(kafkaConsumerProperties.getTopics(), this);
-	    }
+        try {
+            final KafkaConsumerProperties kafkaConsumerProperties = getKafkaConsumerProperties();
+            if (kafkaConsumerProperties.hasPatternBasedTopic()) {
+                consumer.subscribe(kafkaConsumerProperties.getTopicPattern(), this);
+            } else {
+                consumer.subscribe(kafkaConsumerProperties.getTopics(), this);
+            }
 
-	    List<Future<BulkInvokerResult>> partitionFutures = null;
+            List<Future<BulkInvokerResult>> partitionFutures;
+            Map<TopicPartition, Set<ConsumerRecord<String, ?>>> tpRecordsMap = new ConcurrentHashMap<>();
+            final Collection<TopicPartition> toBePause = Collections.synchronizedSet(new HashSet<>());
+            final Collection<TopicPartition> toBeResume = Collections.synchronizedSet(new HashSet<>());
+            TopicPartition tp;
+            int pollWaitMs = 3000;
+            pollLoop:
+            while (running.get()) {
+                final ConsumerRecords<String, ?> records = consumer.poll(Duration.of(pollWaitMs, ChronoUnit.MILLIS));
+                if (!records.isEmpty()) {
+                    pollWaitMs = 0;
+                    if (kafkaConsumerProperties.isAtMostOnceBulk() && !commitLastOffsets()) {
+                        continue;
+                    }
 
-	    final Collection<TopicPartition> toBePause = new HashSet<>();
-	    final Collection<TopicPartition> toBeResume = new HashSet<>();
-	    TopicPartition tp;
-	    int pollWaitMs = 3000;
-	    pollLoop:
-	    while (running.get()) {
-		final ConsumerRecords<String, ?> records = consumer.poll(pollWaitMs);
+                    toBePause.clear();
+                    try {
+                        for (ConsumerRecord<String, ?> rec : records) {
+                            if (kafkaConsumerProperties.isAtMostOnceSingle() && !commitOffset(rec)) {
+                                continue pollLoop;
+                            }
 
-		if (!records.isEmpty()) {
-		    pollWaitMs = 0;
-		    if (kafkaConsumerProperties.isAtMostOnceBulk() && !commitLastOffsets()) {
-			continue;
-		    }
+                            tp = new TopicPartition(rec.topic(), rec.partition());
+                            LOG.trace("tp [{}].", tp);
+                            final List<? extends ConsumerRecord<String, ?>> tpRecords = records.records(tp);
+                            final Set<ConsumerRecord<String, ?>> consumerRecords = tpRecordsMap.getOrDefault(tp, new LinkedHashSet<>());
+                            consumerRecords.addAll(tpRecords);
+                            tpRecordsMap.put(tp, consumerRecords);
+                            if (isAutoPartitionPause()) {
+                                toBePause.add(new TopicPartition(rec.topic(), rec.partition()));
+                            }
+                        }
 
-		    toBePause.clear();
-		    Map<TopicPartition, Set<ConsumerRecord<String, ?>>> tpRecordsMap = new HashMap<>();
-		    for (ConsumerRecord<String, ?> rec : records) {
-			if (kafkaConsumerProperties.isAtMostOnceSingle() && !commitOffset(rec)) {
-			    continue pollLoop;
-			}
+                        for (Map.Entry<TopicPartition, Set<ConsumerRecord<String, ?>>> topicPartitionSetEntry : tpRecordsMap.entrySet()) {
+                            try {
+                                Set<ConsumerRecord<String, ?>> messages = topicPartitionSetEntry.getValue();
+                                synchronized (messages) {
+                                    LOG.trace("tp [{}] size : {}", topicPartitionSetEntry.getKey(), messages.size());
+                                    partitionFutures = inProgressMessages.get(topicPartitionSetEntry.getKey());
+                                    partitionFutures.add(consumerRecordHandler.handle(messages));
+                                }
+                            } catch (Exception e) {
+                                LOG.error("Error processing kafka message for partition [{}].", topicPartitionSetEntry.getKey(), e);
+                                InterruptUtils.interruptIfInterruptedException(e);
+                            }
+                        }
+                    } finally {
+                        if (!tpRecordsMap.isEmpty()) {
+                            tpRecordsMap.clear();
+                        }
+                    }
 
-			tp = new TopicPartition(rec.topic(), rec.partition());
-			partitionFutures = inProgressMessages.get(tp);
-			final List<? extends ConsumerRecord<String, ?>> tpRecords = records.records(tp);
-			try {
-			    final Set<ConsumerRecord<String, ?>> consumerRecords = tpRecordsMap.getOrDefault(tp, new LinkedHashSet<>());
-			    final Set<ConsumerRecord<String, ?>> tpRecs = tpRecords.stream().collect(Collectors.toSet());
-			    tpRecs.addAll(consumerRecords);
-			    tpRecordsMap.put(tp, tpRecs);
-			    if (isAutoPartitionPause()) {
-				toBePause.add(new TopicPartition(rec.topic(), rec.partition()));
-			    }
-			} catch (Exception e) {
-			    LOG.error("Error processing kafka message [{}].", rec.value(), e);
-			    InterruptUtils.interruptIfInterruptedException(e);
-			}
-		    }
+                    // do not read any records on the next poll cycle
+                    LOG.debug("PAUSED-> {}", toBePause);
+                    consumer.pause(toBePause);
+                } else {
+                    // increase poll wait time until 3sec
+                    pollWaitMs = Math.min(pollWaitMs + 10, 3000);
+                }
 
-		    for (Set<ConsumerRecord<String, ?>> messages : tpRecordsMap.values()) {
-			partitionFutures.add(consumerRecordHandler.handle(messages));
-		    }
+                toBeResume.clear();
 
-		    // do not read any records on the next poll cycle
-		    LOG.debug("PAUSED-> {}", toBePause);
-		    consumer.pause(toBePause);
-		} else {
-		    // increase poll wait time until 3sec
-		    pollWaitMs = Math.min(pollWaitMs + 10, 3000);
-		}
+                for (Map.Entry<TopicPartition, List<Future<BulkInvokerResult>>> tpBasedMessagesFutures : inProgressMessages.entrySet()) {
+                    final List<Future<BulkInvokerResult>> messagesFutures = tpBasedMessagesFutures.getValue();
+                    if (messagesFutures.isEmpty()) {
+                        continue;
+                    }
+                    synchronized (messagesFutures) {
+                        final BulkInvokerResult lastCompleted = getLastCompletedRecord(messagesFutures);
+                        if (lastCompleted != null) {
+                            bulkRecordRetryer.checkAndRetry(lastCompleted);
+                        }
+                        if (lastCompleted != null && kafkaConsumerProperties.isAtLeastOnceSingle()) {
+                            commitOffset(lastCompleted.getRecords().iterator().next());
+                        }
+                        //check after last message filtering
+                        if (messagesFutures.isEmpty()) {
+                            if (kafkaConsumerProperties.isAtLeastOnceBulk()) {
+                                if (lastCompleted != null) {
+                                    commitOffset(lastCompleted.getRecords().iterator().next());
+                                }
+                            }
+                            LOG.trace("tpBasedMessagesFutures : {}", tpBasedMessagesFutures);
+                            toBeResume.add(tpBasedMessagesFutures.getKey());
+                        }
+                    }
+                }
+                if (!toBeResume.isEmpty()) {
+                    consumer.resume(toBeResume);
+                    LOG.debug("RESUMED-> {}", toBePause);
+                }
+            }
+        } catch (WakeupException e) {
+            LOG.info("WakeupException is handled. Shutting down the bulk consumer.");
+            if (running.get()) {
+                LOG.error("WakeupException occurred while running=true! " + "This may be an error therefore here is the stacktrace for error {}", e.getMessage(), e);
+            }
+        } catch (Exception e) {
+            LOG.error("Exception occurred when polling or committing, message : {}", e.getMessage(), e);
+            InterruptUtils.interruptIfInterruptedException(e);
+        } finally {
+            try {
+                consumer.close();
+            } catch (Exception e) {
+                LOG.error("Exception while closing bulk consumer {}: {}", getKafkaConsumerProperties().getGroupId(), e.getMessage(), e);
+                InterruptUtils.interruptIfInterruptedException(e);
+            }
+        }
 
-		toBeResume.clear();
-
-		final Iterator<Map.Entry<TopicPartition, List<Future<BulkInvokerResult>>>> messageIterator = inProgressMessages.entrySet().iterator();
-		while (messageIterator.hasNext()) {
-		    final Map.Entry<TopicPartition, List<Future<BulkInvokerResult>>> messageEntry = messageIterator.next();
-		    final List<Future<BulkInvokerResult>> messageEntryValue = messageEntry.getValue();
-		    if (!messageEntryValue.isEmpty()) {
-			final BulkInvokerResult lastCompleted = getLastCompletedRecord(messageEntryValue);
-			if (lastCompleted != null) {
-			    bulkRecordRetryer.checkAndRetry(lastCompleted);
-			}
-			if (lastCompleted != null && kafkaConsumerProperties.isAtLeastOnceSingle()) {
-			    commitOffset(lastCompleted.getRecords().iterator().next());
-			}
-
-			if (messageEntryValue.isEmpty()) {
-			    if (kafkaConsumerProperties.isAtLeastOnceBulk()) {
-				if (lastCompleted != null) {
-				    commitOffset(lastCompleted.getRecords().iterator().next());
-				}
-			    }
-			    toBeResume.add(messageEntry.getKey());
-			}
-		    }
-		}
-		if (!toBeResume.isEmpty()) {
-		    consumer.resume(toBeResume);
-		    LOG.debug("RESUMED-> {}", toBePause);
-		}
-	    }
-	} catch (WakeupException e) {
-	    LOG.info("WakeupException is handled. Shutting down the bulk consumer.");
-	    if (running.get()) {
-		LOG.error("WakeupException occurred while running=true! " +
-			"This may be an error therefore here is the stacktrace for error {}", e.getMessage(), e);
-	    }
-	} catch (Exception e) {
-	    LOG.error("Exception occurred when polling or committing, message : {}",
-		    e.getMessage(), e);
-	    InterruptUtils.interruptIfInterruptedException(e);
-	} finally {
-	    try {
-		consumer.close();
-	    } catch (Exception e) {
-		LOG.error("Exception while closing bulk consumer {}: {}",
-			getKafkaConsumerProperties().getGroupId(), e.getMessage(), e);
-		InterruptUtils.interruptIfInterruptedException(e);
-	    }
-	}
-
-	closed.set(true);
+        closed.set(true);
     }
 
     protected BulkInvokerResult getLastCompletedRecord(List<Future<BulkInvokerResult>> invocations) {
-	BulkInvokerResult lastCompleted = null;
-	BulkInvokerResult crTemp;
+        BulkInvokerResult lastCompleted = null;
+        BulkInvokerResult crTemp;
 
-	final Iterator<Future<BulkInvokerResult>> iterator = invocations.iterator();
+        final Iterator<Future<BulkInvokerResult>> iterator = invocations.iterator();
 
-	while (iterator.hasNext()) {
-	    final Future<BulkInvokerResult> nextRecord = iterator.next();
-	    if (nextRecord.isDone()) {
-		if (lastCompleted == null) {
-		    lastCompleted = FutureUtils.getUnchecked(nextRecord);
-		} else if (lastCompleted.getRecords().iterator().next().offset() < (crTemp = FutureUtils.getUnchecked(nextRecord)).getRecords().iterator().next().offset()) {
-		    lastCompleted = crTemp;
-		}
-		iterator.remove();
-	    } else {
-		break;
-	    }
-	}
+        while (iterator.hasNext()) {
+            final Future<BulkInvokerResult> nextRecord = iterator.next();
+            if (nextRecord.isDone()) {
+                if (lastCompleted == null) {
+                    lastCompleted = FutureUtils.getUnchecked(nextRecord);
+                } else if (lastCompleted.getRecords().iterator().next().offset() < (crTemp = FutureUtils.getUnchecked(nextRecord)).getRecords().iterator().next().offset()) {
+                    lastCompleted = crTemp;
+                }
+                iterator.remove();
+            } else {
+                break;
+            }
+        }
 
-	return lastCompleted;
+        return lastCompleted;
     }
 
 
     private boolean commitLastOffsets() {
-	try {
-	    consumer.commitSync();
-	    return true;
-	} catch (CommitFailedException e) {
-	    LOG.info("Committing last offsets failed for {}.", getKafkaConsumerProperties().getClientId(), e);
-	    return false;
-	}
+        try {
+            consumer.commitSync();
+            return true;
+        } catch (CommitFailedException e) {
+            LOG.info("Committing last offsets failed for {}.", getKafkaConsumerProperties().getClientId(), e);
+            return false;
+        }
     }
 
-    private boolean commitOffset(ConsumerRecord<String, ?> rec) {
-	try {
-	    offsetMap.clear();
-	    offsetMap.put(new TopicPartition(rec.topic(), rec.partition()),
-		    new OffsetAndMetadata(rec.offset() + 1));
-	    consumer.commitSync(offsetMap);
-	    return true;
-	} catch (CommitFailedException e) {
-	    LOG.error("Offset commit failed for {}. offset={}, request={}",
-		    getKafkaConsumerProperties().getClientId(), offsetMap, rec.value(), e);
-	    return false;
-	}
+    private synchronized boolean commitOffset(ConsumerRecord<String, ?> rec) {
+        try {
+            offsetMap.clear();
+            offsetMap.put(new TopicPartition(rec.topic(), rec.partition()), new OffsetAndMetadata(rec.offset() + 1));
+            consumer.commitSync(offsetMap);
+            return true;
+        } catch (CommitFailedException e) {
+            LOG.error("Offset commit failed for {}. offset={}, request={}", getKafkaConsumerProperties().getClientId(), offsetMap, rec.value(), e);
+            return false;
+        }
     }
 
     @Override
     public void start() {
-	Assert.notNull(consumerRecordHandler, "BulkConsumerRecordHandler is null!");
-	LOG.info("Starting bulk consumer. group={}", getKafkaConsumerProperties().getGroupId());
-	shutdownExecutorIfNotNull();
-	closeConsumerSilently();
-	this.bulkRecordRetryer = new DefaultBulkRecordRetryer();
-	this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), getValueDeserializer());
-	final ThreadFactory threadFactory = this.consumerThreadFactory == null
-		? new IncrementalNamingThreadFactory(getKafkaConsumerProperties().getGroupId()) : this.consumerThreadFactory;
-	this.executorService = new ThreadPoolExecutor(0, 1, 0, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), threadFactory);
-	executorService.submit(this);
-	running.set(true);
+        Assert.notNull(consumerRecordHandler, "BulkConsumerRecordHandler is null!");
+        LOG.info("Starting bulk consumer. group={}", getKafkaConsumerProperties().getGroupId());
+        shutdownExecutorIfNotNull();
+        closeConsumerSilently();
+        this.bulkRecordRetryer = new DefaultBulkRecordRetryer();
+        this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), getValueDeserializer());
+        final ThreadFactory threadFactory = this.consumerThreadFactory == null ? new IncrementalNamingThreadFactory(getKafkaConsumerProperties().getGroupId()) : this.consumerThreadFactory;
+        int consumerPollerThreadCount = NumberUtils.toInt(getKafkaConsumerProperties().getKafkaConsumerProperties().getProperty("poller.thread.count"), 1);
+        int consumerPollerThreadAliveTimeMs = NumberUtils.toInt(getKafkaConsumerProperties().getKafkaConsumerProperties().getProperty("poller.thread.keep-alive-time"), 0);
+        this.executorService = new ThreadPoolExecutor(0, consumerPollerThreadCount, consumerPollerThreadAliveTimeMs, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), threadFactory);
+        executorService.submit(this);
+        running.set(true);
     }
 
     @Override
     public void stop() {
-	if (!running.get()) {
-	    return;
-	}
+        if (!running.get()) {
+            return;
+        }
 
-	this.running.set(false);
-	this.consumer.wakeup();
-	do {
-	    ThreadUtils.sleepQuietly(500);
-	} while (!closed.get());
+        this.running.set(false);
+        this.consumer.wakeup();
+        do {
+            ThreadUtils.sleepQuietly(500);
+        } while (!closed.get());
 
-	shutdownExecutorIfNotNull();
+        shutdownExecutorIfNotNull();
     }
 
     private void shutdownExecutorIfNotNull() {
-	if (this.executorService != null) {
-	    this.executorService.shutdownNow();
-	    this.executorService = null;
-	}
+        if (this.executorService != null) {
+            this.executorService.shutdownNow();
+            this.executorService = null;
+        }
     }
 
     private void closeConsumerSilently() {
-	if (consumer == null) {
-	    return;
-	}
-	try {
-	    consumer.close();
-	} catch (Exception e) {
-	    LOG.trace("Exception in closeConsumerSilently: {}", e.getMessage(), e);
-	}
+        if (consumer == null) {
+            return;
+        }
+        try {
+            consumer.close();
+        } catch (Exception e) {
+            LOG.trace("Exception in closeConsumerSilently: {}", e.getMessage(), e);
+        }
     }
 
     @Override
     public void pause(TopicPartition topicPartition) {
-	consumer.pause(Collections.singletonList(topicPartition));
+        consumer.pause(Collections.singletonList(topicPartition));
     }
 
     @Override
     public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
-	inProgressMessages.clear();
-	for (TopicPartition tp : partitions) {
-	    inProgressMessages.put(tp, new ArrayList<>());
-	}
+        inProgressMessages.clear();
+        for (TopicPartition tp : partitions) {
+            inProgressMessages.put(tp, new ArrayList<>());
+        }
 
-	LOG.info("ASSIGNED-> {}", partitions);
+        LOG.info("ASSIGNED-> {}", partitions);
     }
 
     @Override
     public void onPartitionsRevoked(Collection<TopicPartition> partitionsRevoked) {
-	if (!(getKafkaConsumerProperties().isAtLeastOnce() || getKafkaConsumerProperties().isAtLeastOnceBulk())) {
-	    return;
-	}
+        if (!(getKafkaConsumerProperties().isAtLeastOnce() || getKafkaConsumerProperties().isAtLeastOnceBulk())) {
+            return;
+        }
 
-	for (TopicPartition tpRevoked : partitionsRevoked) {
-	    final List<Future<BulkInvokerResult>> inProgressTasks = inProgressMessages.get(tpRevoked);
-	    if (inProgressTasks != null && !inProgressTasks.isEmpty()) {
-		for (int i = inProgressTasks.size() - 1; i >= 0; --i) {
-		    final Future<BulkInvokerResult> f = inProgressTasks.get(i);
-		    if (f.isDone()) {
-			commitOffset(FutureUtils.getUnchecked(f).getRecords().iterator().next());
-			break;
-		    }
-		}
-	    }
-	}
-	LOG.info("REVOKED-> {}", partitionsRevoked);
+        for (TopicPartition tpRevoked : partitionsRevoked) {
+            final List<Future<BulkInvokerResult>> inProgressTasks = inProgressMessages.get(tpRevoked);
+            if (inProgressTasks != null && !inProgressTasks.isEmpty()) {
+                for (int i = inProgressTasks.size() - 1; i >= 0; --i) {
+                    final Future<BulkInvokerResult> f = inProgressTasks.get(i);
+                    if (f.isDone()) {
+                        commitOffset(FutureUtils.getUnchecked(f).getRecords().iterator().next());
+                        break;
+                    }
+                }
+            }
+        }
+        LOG.info("REVOKED-> {}", partitionsRevoked);
     }
 
     public void setConsumerRecordHandler(BulkConsumerRecordHandler bulkConsumerRecordHandler) {
-	Assert.notNull(bulkConsumerRecordHandler, "BulkConsumerRecordHandler is null!");
-	this.consumerRecordHandler = bulkConsumerRecordHandler;
+        Assert.notNull(bulkConsumerRecordHandler, "BulkConsumerRecordHandler is null!");
+        this.consumerRecordHandler = bulkConsumerRecordHandler;
     }
 
     public void setConsumerThreadFactory(ThreadFactory consumerThreadFactory) {
-	this.consumerThreadFactory = consumerThreadFactory;
+        this.consumerThreadFactory = consumerThreadFactory;
     }
 
     @Override
     public boolean shouldRestart() {
-	return this.running.get() && this.closed.get();
+        return this.running.get() && this.closed.get();
     }
 }
