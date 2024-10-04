@@ -10,7 +10,6 @@ import com.inomera.telco.commons.springkafka.consumer.invoker.InvokerResult;
 import com.inomera.telco.commons.springkafka.consumer.retry.DefaultRecordRetryer;
 import com.inomera.telco.commons.springkafka.consumer.retry.RecordRetryer;
 import com.inomera.telco.commons.springkafka.util.InterruptUtils;
-import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
@@ -229,9 +228,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
         this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), valueDeserializer);
         final ThreadFactory threadFactory = this.consumerThreadFactory == null
                 ? new IncrementalNamingThreadFactory(kafkaConsumerProperties.getGroupId()) : this.consumerThreadFactory;
-        int consumerPollerThreadCount = NumberUtils.toInt(getKafkaConsumerProperties().getKafkaConsumerProperties().getProperty("poller.thread.count"), 1);
-        int consumerPollerThreadAliveTimeMs = NumberUtils.toInt(getKafkaConsumerProperties().getKafkaConsumerProperties().getProperty("poller.thread.keep-alive-time"), 0);
-        this.executorService = new ThreadPoolExecutor(0, consumerPollerThreadCount, consumerPollerThreadAliveTimeMs, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), threadFactory);
+        this.executorService = new ThreadPoolExecutor(0, 1, 0, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), threadFactory);
         executorService.submit(this);
         running.set(true);
     }

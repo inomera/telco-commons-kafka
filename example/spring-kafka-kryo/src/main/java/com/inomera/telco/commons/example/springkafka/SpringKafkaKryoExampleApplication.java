@@ -65,7 +65,7 @@ public class SpringKafkaKryoExampleApplication implements SchedulingConfigurer {
         return new PollerThreadStore();
     }
 
-    @Bean
+    @Bean(destroyMethod = "close")
     public ThreadStateChecker consumerThreadStateChecker(KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties) {
         return new PollerThreadStateChecker(consumerThreadStore(), pollerThreadNotifier(), defaultKafkaConsumerConfigurationProperties.getPollerThreadProperties());
     }

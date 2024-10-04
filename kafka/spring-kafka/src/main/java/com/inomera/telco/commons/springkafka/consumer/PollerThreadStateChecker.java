@@ -87,4 +87,14 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
                 .orElse(StringUtils.EMPTY);
     }
 
+    @Override
+    public void close() {
+        if (executorService == null) {
+            return;
+        }
+        if (executorService.isShutdown()) {
+            return;
+        }
+        executorService.shutdown();
+    }
 }
