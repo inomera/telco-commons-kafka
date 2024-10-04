@@ -13,16 +13,20 @@ import com.inomera.telco.commons.springkafka.annotation.EnableKafkaListeners;
 import com.inomera.telco.commons.springkafka.builder.KafkaConsumerBuilder;
 import com.inomera.telco.commons.springkafka.consumer.*;
 import com.inomera.telco.commons.springkafka.producer.KafkaMessagePublisher;
+import com.inomera.telco.commons.springkafka.producer.KafkaTransactionalMessagePublisher;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+import javax.net.ssl.SSLContext;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import static com.inomera.echo.domain.DomainConstants.CLASS_IDS;
 import static com.inomera.echo.domain.KafkaTopicConstants.*;
+import static org.apache.kafka.clients.producer.ProducerConfig.TRANSACTIONAL_ID_CONFIG;
 
 /**
  * @author Serdar Kuzucu
@@ -50,7 +54,7 @@ public class SpringKafkaProtobufExampleApplication {
         return new PollerThreadStore();
     }
 
-    @Bean
+    @Bean(destroyMethod = "close")
     public ThreadStateChecker consumerThreadStateChecker(KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties) {
         return new PollerThreadStateChecker(consumerThreadStore(), pollerThreadNotifier(), defaultKafkaConsumerConfigurationProperties.getPollerThreadProperties());
     }
@@ -113,9 +117,23 @@ public class SpringKafkaProtobufExampleApplication {
     }
 
     @Bean
+    public TransactionalEventPublisher eventPublisher(KafkaTransactionalMessagePublisher<? super GeneratedMessageV3> transactionalKafkaPublisher) {
+        return new TransactionalEventPublisher(transactionalKafkaPublisher);
+    }
+
+    @Bean
     public KafkaMessagePublisher<? super GeneratedMessageV3> kafkaPublisher(
             KafkaProducerConfigurationProperties defaultKafkaProducerConfigurationProperties,
             KafkaProtobufSerializer kafkaSerializer) {
         return new KafkaMessagePublisher<>(kafkaSerializer, defaultKafkaProducerConfigurationProperties.getProperties());
+    }
+
+    @Bean
+    public KafkaTransactionalMessagePublisher<? super GeneratedMessageV3> transactionalKafkaPublisher(
+            KafkaProducerConfigurationProperties defaultKafkaProducerConfigurationProperties,
+            KafkaProtobufSerializer kafkaSerializer) {
+        Properties properties = defaultKafkaProducerConfigurationProperties.getProperties();
+        properties.put(TRANSACTIONAL_ID_CONFIG, "spring-kafka-protobuf-");
+        return new KafkaTransactionalMessagePublisher<>(kafkaSerializer, defaultKafkaProducerConfigurationProperties.getProperties());
     }
 }
