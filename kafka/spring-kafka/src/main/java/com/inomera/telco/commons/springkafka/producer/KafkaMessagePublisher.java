@@ -6,16 +6,14 @@ import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.header.internals.RecordHeader;
-import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.util.Assert;
 import org.springframework.util.SerializationUtils;
+import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
@@ -25,11 +23,13 @@ import java.util.concurrent.Future;
  * @author Ramazan Karakaya
  */
 public class KafkaMessagePublisher<V> {
+    private static final String TRANSACTIONAL_PRODUCERS_ARE_NOT_SUPPORTED = "Transactional producers are not supported";
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaMessagePublisher.class);
 
-    private Producer<String, V> producer;
+    private final Producer<String, V> producer;
 
     public KafkaMessagePublisher(Serializer<V> valueSerializer, Properties properties) {
+        Assert.isTrue(nonTransactional(properties), TRANSACTIONAL_PRODUCERS_ARE_NOT_SUPPORTED);
         this.producer = new KafkaProducer<>(properties, new StringSerializer(), valueSerializer);
     }
 
@@ -40,13 +40,10 @@ public class KafkaMessagePublisher<V> {
     }
 
     public Future<SendResult<String, V>> send(String topicName, Map<String, Object> headers, V data) {
-	final String partitionKey = getPartitionKey(data);
-	final ProducerRecord<String, V> producerRecord = new ProducerRecord<>(topicName, partitionKey, data);
-	for (Map.Entry<String, Object> header : headers.entrySet()) {
-	    final byte[] serializedHeaderValue = SerializationUtils.serialize(header.getValue());
-	    producerRecord.headers().add(new RecordHeader(header.getKey(), serializedHeaderValue));
-	}
-	return doSend(producerRecord);
+        final String partitionKey = getPartitionKey(data);
+        final ProducerRecord<String, V> producerRecord = new ProducerRecord<>(topicName, partitionKey, data);
+        checkAndSetHeaders(headers, producerRecord);
+        return doSend(producerRecord);
     }
 
     public Future<SendResult<String, V>> send(String topicName, String key, V data) {
@@ -54,9 +51,19 @@ public class KafkaMessagePublisher<V> {
         return doSend(producerRecord);
     }
 
+    private void checkAndSetHeaders(Map<String, Object> headers, ProducerRecord<String, V> producerRecord) {
+        if (headers == null || headers.isEmpty()) {
+            return;
+        }
+        headers.forEach((key, value) -> {
+            final byte[] serializedHeaderValue = SerializationUtils.serialize(value);
+            producerRecord.headers().add(new RecordHeader(key, serializedHeaderValue));
+        });
+    }
+
     private String getPartitionKey(V data) {
-        if (data instanceof PartitionKeyAware) {
-            return ((PartitionKeyAware) data).getPartitionKey();
+        if (data instanceof PartitionKeyAware partitionKeyAware) {
+            return partitionKeyAware.getPartitionKey();
         }
         return String.valueOf(data.hashCode());
     }
@@ -70,7 +77,7 @@ public class KafkaMessagePublisher<V> {
         close();
     }
 
-    protected void close() {
+    public void close() {
         producer.close();
     }
 
@@ -80,8 +87,7 @@ public class KafkaMessagePublisher<V> {
         final CompletableFuture<SendResult<String, V>> future = new CompletableFuture<>();
 
         final Callback kafkaProducerSendCallback = (RecordMetadata metadata, Exception exception) -> {
-            LOGGER.trace("ProducerRecord: {}, Record Metadata: {}, Exception: {}", producerRecord, metadata, exception);
-
+            LOGGER.trace("ProducerRecord: {}, Record Metadata: {}", producerRecord, metadata, exception);
             if (exception == null) {
                 future.complete(new SendResult<>(producerRecord, metadata));
             } else {
@@ -105,21 +111,11 @@ public class KafkaMessagePublisher<V> {
         return future;
     }
 
-    public static class SendResult<K, V> {
-        private final ProducerRecord<K, V> producerRecord;
-        private final RecordMetadata recordMetadata;
+    public record SendResult<K, V>(ProducerRecord<K, V> producerRecord, RecordMetadata recordMetadata) {
+    }
 
-        public SendResult(ProducerRecord<K, V> producerRecord, RecordMetadata recordMetadata) {
-            this.producerRecord = producerRecord;
-            this.recordMetadata = recordMetadata;
-        }
-
-        public ProducerRecord<K, V> getProducerRecord() {
-            return this.producerRecord;
-        }
-
-        public RecordMetadata getRecordMetadata() {
-            return this.recordMetadata;
-        }
+    private boolean nonTransactional(Properties properties) {
+        String transactionalId = (String) properties.get(ProducerConfig.TRANSACTIONAL_ID_CONFIG);
+        return !StringUtils.hasText(transactionalId);
     }
 }

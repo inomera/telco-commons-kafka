@@ -54,7 +54,7 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
         }
 
         for (PollerThreadState monitoringThread : monitoringThreads) {
-            if (StringUtils.equals(monitoringThread.getCurrentJvmState(), monitoringThread.getOldJvmState())) {
+            if (StringUtils.isNotBlank(monitoringThread.getCurrentJvmState()) && StringUtils.equals(monitoringThread.getCurrentJvmState(), monitoringThread.getOldJvmState())) {
                 LOG.debug("PollerThreadStateChecker -> State is same :: {}", monitoringThread.toString());
                 continue;
             }
@@ -87,4 +87,14 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
                 .orElse(StringUtils.EMPTY);
     }
 
+    @Override
+    public void close() {
+        if (executorService == null) {
+            return;
+        }
+        if (executorService.isShutdown()) {
+            return;
+        }
+        executorService.shutdown();
+    }
 }

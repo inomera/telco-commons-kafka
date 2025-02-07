@@ -13,6 +13,6 @@ public class DefaultPollerThreadNotifier implements PollerThreadNotifier {
 
     @Override
     public void alarm(String alarmText, Exception e) {
-        LOG.warn("Consumer is not re-started!! {}, Exception :: {}", alarmText, e);
+        LOG.warn("Consumer is not re-started!! {}, Exception :: {}", alarmText, e.toString());
     }
 }

@@ -1,9 +1,9 @@
 package com.inomera.telco.commons.springkafka.consumer;
 
 import com.inomera.telco.commons.lang.Assert;
+import com.inomera.telco.commons.springkafka.util.ClientIdGenerator;
 import lombok.Getter;
 
-import java.lang.management.ManagementFactory;
 import java.util.List;
 import java.util.Properties;
 import java.util.regex.Pattern;
@@ -65,40 +65,19 @@ public class KafkaConsumerProperties {
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder("KafkaConsumerProperties [");
-        sb.append("groupId=").append(groupId);
-        sb.append(", topics=").append(topics);
-        sb.append(", topicPattern=").append(topicPattern);
-        sb.append("]");
-        return sb.toString();
+        return "KafkaConsumerProperties [" + "groupId=" + groupId +
+                ", topics=" + topics +
+                ", topicPattern=" + topicPattern +
+                "]";
     }
 
     public String getClientId() {
-        return "Consumer_" + getContainerId();
+        return "Consumer_" + ClientIdGenerator.getContainerId(groupId);
     }
 
     public boolean hasPatternBasedTopic() {
         return topicPattern != null;
     }
 
-    private StringBuilder getContainerId() {
-        final StringBuilder sbContainerId = new StringBuilder();
-        sbContainerId.append(groupId).append('-');
-        sbContainerId.append(getNodeName());
-        return sbContainerId;
-    }
 
-    private String getNodeName() {
-        String serverName = null;
-        try {
-            serverName = ManagementFactory.getRuntimeMXBean().getName();
-        } catch (Exception ignored) {
-        }
-
-        if (serverName == null) {
-            throw new RuntimeException("Can not determine server instance name.");
-        }
-
-        return serverName.replace('@', '-');
-    }
 }

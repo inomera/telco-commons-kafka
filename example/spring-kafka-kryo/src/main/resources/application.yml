@@ -1,0 +1,18 @@
+spring:
+  profiles:
+    active: dev
+
+logging:
+  pattern:
+    console: 'thread_id=%t [%thread] %clr(%d{HH:mm:ss.SSS}){blue} %clr(%-5p) %clr([%15t]){cyan} %clr(:){red} [%X{logTrackId}]  %clr(%m){faint}%n'
+  level:
+    org:
+      apache:
+        kafka: DEBUG
+    com:
+      inomera:
+        telco:
+          commons: DEBUG
+
+server:
+  port: 8080
