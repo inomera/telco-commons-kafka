@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+package common;
+
+message GlobalErrorProto {
+  int32 code = 1;
+  string description = 2;
+}

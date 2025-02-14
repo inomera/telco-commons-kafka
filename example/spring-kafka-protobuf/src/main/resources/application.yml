@@ -1,6 +1,12 @@
+spring:
+  profiles:
+    active: docker
 logging:
   pattern:
     console: '%clr(%d{HH:mm:ss.SSS}){blue} %clr(%-5p) %clr([%15t]){cyan} %clr(:){red} %clr(%m){faint}%n'
+  level:
+    com:
+      inomera: DEBUG
 server:
   port: 8081
 

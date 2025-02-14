@@ -1,5 +1,5 @@
 plugins {
-    id 'java'
+    id 'java-library'
 }
 
 apply from: "${rootProject.rootDir}/gradle/tests.gradle"
@@ -7,8 +7,8 @@ apply from: "${rootProject.rootDir}/gradle/publishing.gradle"
 
 group = 'com.inomera.telco.commons'
 version = project.file('VERSION').text.trim()
-sourceCompatibility = JavaVersion.VERSION_17
-targetCompatibility = JavaVersion.VERSION_17
+sourceCompatibility = JavaVersion.VERSION_23
+targetCompatibility = JavaVersion.VERSION_23
 
 configurations {
     compileOnly {
@@ -18,11 +18,10 @@ configurations {
         extendsFrom compileOnly
     }
 }
-compileJava.dependsOn(processResources)
 
 dependencies {
-    implementation 'org.springframework:spring-core:6.0.13'
-    implementation 'org.springframework:spring-context:6.0.13'
+    implementation 'org.springframework:spring-core:6.2.1'
+    implementation 'org.springframework:spring-context:6.2.1'
 
     implementation "com.inomera.telco.commons:lang:${versions.lang}"
     implementation "org.apache.kafka:kafka-clients:${versions.kafka_clients}"
@@ -38,7 +37,7 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter-engine:${versions.jupiter}"
     testImplementation "org.mockito:mockito-core:${versions.mockito_core}"
     testImplementation "org.mockito:mockito-junit-jupiter:${versions.mockito_jupiter}"
-    testImplementation "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+    testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 publishing {

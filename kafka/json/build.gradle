@@ -1,5 +1,6 @@
 plugins {
     id 'java-library'
+    id 'maven-publish'
 }
 
 apply from: "${rootProject.rootDir}/gradle/tests.gradle"
@@ -7,8 +8,9 @@ apply from: "${rootProject.rootDir}/gradle/publishing.gradle"
 
 group = 'com.inomera.telco.commons'
 version = project.file('VERSION').text.trim()
-sourceCompatibility = JavaVersion.VERSION_17
-targetCompatibility = JavaVersion.VERSION_17
+
+sourceCompatibility = JavaVersion.VERSION_23
+targetCompatibility = JavaVersion.VERSION_23
 
 configurations {
     compileOnly {
@@ -18,16 +20,15 @@ configurations {
         extendsFrom compileOnly
     }
 }
-compileJava.dependsOn(processResources)
 
 dependencies {
     implementation "com.inomera.telco.commons:lang:${versions.lang}"
     implementation "org.apache.kafka:kafka-clients:${versions.kafka_clients}"
     implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
-    implementation "com.fasterxml.jackson.core:jackson-databind:2.15.3"
-    implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.3"
-    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.11.2'
-    implementation "com.fasterxml.jackson.module:jackson-module-parameter-names:2.15.3"
+    implementation "com.fasterxml.jackson.core:jackson-databind:2.18.2"
+    implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18.2"
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.18.2'
+    implementation "com.fasterxml.jackson.module:jackson-module-parameter-names:2.18.2"
 
     implementation "org.slf4j:slf4j-api:${versions.slf4j}"
 
@@ -40,7 +41,11 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter-engine:${versions.jupiter}"
     testImplementation "org.mockito:mockito-core:${versions.mockito_core}"
     testImplementation "org.mockito:mockito-junit-jupiter:${versions.mockito_jupiter}"
-    testImplementation "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+    testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+}
+
+tasks.named('jar') {
+    enabled = true
 }
 
 publishing {
@@ -54,4 +59,8 @@ publishing {
             artifact tasks.sourceJar
         }
     }
+}
+
+tasks.generatePomFileForMavenJavaPublication {
+    destination = file("${project.projectDir}/build/publications/mavenJava/${project.name}-${project.version}.pom")
 }

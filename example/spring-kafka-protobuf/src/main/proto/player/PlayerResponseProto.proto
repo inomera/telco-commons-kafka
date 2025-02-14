@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+
+package player;
+
+import "common/ResponseStatusProto.proto";
+import "player/PlayerInfoProto.proto";
+
+message PlayerResponseProto {
+  common.ResponseStatusProto status = 1;
+  string txKey = 2;
+  player.PlayerInfoProto data = 3;
+}
+
+message PlayersResponseProto {
+  common.ResponseStatusProto status = 1;
+  string txKey = 2;
+  repeated player.PlayerResponseProto data = 3;
+}

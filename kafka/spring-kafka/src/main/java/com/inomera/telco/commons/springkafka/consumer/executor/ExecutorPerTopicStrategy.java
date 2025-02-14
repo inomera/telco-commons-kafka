@@ -63,9 +63,9 @@ public class ExecutorPerTopicStrategy implements ExecutorStrategy {
         executor.setCorePoolSize(coreThreadCount);
         executor.setMaximumPoolSize(maxThreadCount);
         executor.setKeepAliveTime(keepAliveTime, keepAliveTimeUnit);
-        final int prestartedCoreThreads = executor.prestartAllCoreThreads();
+        final int preStartedCoreThreads = executor.prestartAllCoreThreads();
         LOG.info("reconfigure::executorName={}, coreThreadCount={}, maxThreadCount={}, keepAliveTime={}, keepAliveTimeUnit={}, startedNewThreads={}",
-                executorName, coreThreadCount, maxThreadCount, keepAliveTime, keepAliveTimeUnit, prestartedCoreThreads);
+                executorName, coreThreadCount, maxThreadCount, keepAliveTime, keepAliveTimeUnit, preStartedCoreThreads);
     }
 
     private void createExecutorIfNotExist(String executorName) {

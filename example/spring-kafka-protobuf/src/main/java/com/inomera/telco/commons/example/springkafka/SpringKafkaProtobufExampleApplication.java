@@ -1,11 +1,7 @@
 package com.inomera.telco.commons.example.springkafka;
 
-import com.google.protobuf.GeneratedMessageV3;
-import com.inomera.echo.domain.KafkaTopicUtils;
-import com.inomera.echo.domain.player.command.PlayerCreateCommandProto;
-import com.inomera.echo.domain.player.event.PlayerNotificationEventProto;
-import com.inomera.echo.domain.todo.command.TodoUpdateCommandProto;
-import com.inomera.echo.domain.todo.event.TodoInfoRequestEventProto;
+import com.google.protobuf.GeneratedMessage;
+import com.inomera.telco.commons.example.domain.constant.KafkaTopicUtils;
 import com.inomera.telco.commons.kafkaprotobuf.ImmutableClassIdRegistry;
 import com.inomera.telco.commons.kafkaprotobuf.KafkaProtobufDeserializer;
 import com.inomera.telco.commons.kafkaprotobuf.KafkaProtobufSerializer;
@@ -19,13 +15,17 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import player.command.PlayerCreateCommandProto;
+import player.event.PlayerNotificationEventProto;
+import todo.command.TodoUpdateCommandProto;
+import todo.event.TodoInfoRequestEventProto;
 
-import javax.net.ssl.SSLContext;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
-import static com.inomera.echo.domain.DomainConstants.CLASS_IDS;
-import static com.inomera.echo.domain.KafkaTopicConstants.*;
+import static com.inomera.telco.commons.example.domain.constant.DomainConstants.CLASS_IDS;
+import static com.inomera.telco.commons.example.domain.constant.KafkaTopicConstants.TOPIC_PLAYER_CREATE_COMMAND;
+import static com.inomera.telco.commons.example.domain.constant.KafkaTopicConstants.TOPIC_PLAYER_NOTIFICATION_EVENT;
 import static org.apache.kafka.clients.producer.ProducerConfig.TRANSACTIONAL_ID_CONFIG;
 
 /**
@@ -87,6 +87,7 @@ public class SpringKafkaProtobufExampleApplication {
                                          KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties,
                                          KafkaProtobufDeserializer kafkaDeserializer) {
 
+        int threads = defaultKafkaConsumerConfigurationProperties.getNumberOfInvokerThreads();
         return builder.properties(defaultKafkaConsumerConfigurationProperties.getProperties())
                 .groupId("event-logger")
                 .topics(KafkaTopicUtils.getTopicNames(
@@ -101,35 +102,36 @@ public class SpringKafkaProtobufExampleApplication {
                 .invoker()
                 .unordered()
                 .dynamicNamedExecutors()
-                .configureExecutor(TOPIC_PLAYER_CREATE_COMMAND, 3, 5, 1, TimeUnit.MINUTES)
-                .configureExecutor(TOPIC_PLAYER_NOTIFICATION_EVENT, 3, 5, 1, TimeUnit.MINUTES)
-                .configureExecutor("example.unlistened-topic", 3, 5, 1, TimeUnit.MINUTES)
+                .configureExecutor(TOPIC_PLAYER_CREATE_COMMAND, threads, threads, 3, TimeUnit.MINUTES)
+                .configureExecutor(TOPIC_PLAYER_NOTIFICATION_EVENT, threads, threads, 3, TimeUnit.MINUTES)
+                .queueCapacity(100_000)
+//                .configureExecutor("example.unlistened-topic", 3, 5, 1, TimeUnit.MINUTES)
                 .and()
                 .and()
                 .and()
                 .threadStore(consumerThreadStore())
-                .build();
+                .buildBulk();
     }
 
     @Bean
-    public EventPublisher eventPublisher(KafkaMessagePublisher<? super GeneratedMessageV3> kafkaPublisher) {
+    public EventPublisher eventPublisher(KafkaMessagePublisher<? super GeneratedMessage> kafkaPublisher) {
         return new EventPublisher(kafkaPublisher);
     }
 
     @Bean
-    public TransactionalEventPublisher eventPublisher(KafkaTransactionalMessagePublisher<? super GeneratedMessageV3> transactionalKafkaPublisher) {
+    public TransactionalEventPublisher transactionalEventPublisher(KafkaTransactionalMessagePublisher<? super GeneratedMessage> transactionalKafkaPublisher) {
         return new TransactionalEventPublisher(transactionalKafkaPublisher);
     }
 
     @Bean
-    public KafkaMessagePublisher<? super GeneratedMessageV3> kafkaPublisher(
+    public KafkaMessagePublisher<? super GeneratedMessage> kafkaPublisher(
             KafkaProducerConfigurationProperties defaultKafkaProducerConfigurationProperties,
             KafkaProtobufSerializer kafkaSerializer) {
         return new KafkaMessagePublisher<>(kafkaSerializer, defaultKafkaProducerConfigurationProperties.getProperties());
     }
 
     @Bean
-    public KafkaTransactionalMessagePublisher<? super GeneratedMessageV3> transactionalKafkaPublisher(
+    public KafkaTransactionalMessagePublisher<? super GeneratedMessage> transactionalKafkaPublisher(
             KafkaProducerConfigurationProperties defaultKafkaProducerConfigurationProperties,
             KafkaProtobufSerializer kafkaSerializer) {
         Properties properties = defaultKafkaProducerConfigurationProperties.getProperties();

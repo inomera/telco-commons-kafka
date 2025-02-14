@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+package common;
+
+import "common/ResponseStatusProto.proto";
+
+message BaseRestResponseProto {
+  common.ResponseStatusProto status = 1;
+  string txKey = 2;
+}

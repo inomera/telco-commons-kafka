@@ -1,19 +1,16 @@
 package com.inomera.telco.commons.springkafka.producer;
 
 import lombok.Getter;
+import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.clients.producer.Callback;
-import org.apache.kafka.clients.producer.Producer;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.clients.producer.RecordMetadata;
-import org.apache.kafka.common.Metric;
-import org.apache.kafka.common.MetricName;
-import org.apache.kafka.common.PartitionInfo;
-import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.clients.producer.*;
+import org.apache.kafka.common.*;
 import org.apache.kafka.common.errors.OutOfOrderSequenceException;
 import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.common.errors.TimeoutException;
+import org.apache.kafka.common.telemetry.internals.ClientTelemetryReporter;
+import org.apache.kafka.common.telemetry.internals.ClientTelemetryUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.lang.Nullable;
@@ -22,6 +19,7 @@ import org.springframework.util.Assert;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Future;
 import java.util.function.BiPredicate;
 
@@ -39,24 +37,26 @@ public class CloseSafeProducer<K, V> implements Producer<K, V> {
     private final long created;
     private final Duration closeTimeout;
     private final int epoch;
+    private final Optional<ClientTelemetryReporter> clientTelemetryReporter;
 
     private volatile Exception producerFailed;
     private volatile boolean closed;
 
+
     CloseSafeProducer(Producer<K, V> delegate,
                       BiPredicate<CloseSafeProducer<K, V>, Duration> removeConsumerProducer, Duration closeTimeout,
                       int epoch) {
-        this(delegate, removeConsumerProducer, null, closeTimeout, epoch);
+        this(delegate, removeConsumerProducer, null, null, closeTimeout, epoch);
     }
 
     CloseSafeProducer(Producer<K, V> delegate, BiPredicate<CloseSafeProducer<K, V>, Duration> removeProducer,
-                      @Nullable String txIdPrefix, Duration closeTimeout, int epoch) {
-        this(delegate, removeProducer, txIdPrefix, null, closeTimeout, epoch);
+                      @Nullable String txIdPrefix, ProducerConfig producerConfig, Duration closeTimeout, int epoch) {
+        this(delegate, removeProducer, txIdPrefix, null, producerConfig, closeTimeout, epoch);
     }
 
     CloseSafeProducer(Producer<K, V> delegate,
                       BiPredicate<CloseSafeProducer<K, V>, Duration> removeProducer, @Nullable String txIdPrefix,
-                      @Nullable String txIdSuffix, Duration closeTimeout, int epoch) {
+                      @Nullable String txIdSuffix,ProducerConfig producerConfig, Duration closeTimeout, int epoch) {
         Assert.isTrue(!(delegate instanceof CloseSafeProducer), "Cannot double-wrap a producer");
         this.delegate = delegate;
         this.removeProducer = removeProducer;
@@ -65,8 +65,10 @@ public class CloseSafeProducer<K, V> implements Producer<K, V> {
         this.closeTimeout = closeTimeout;
         this.created = System.currentTimeMillis();
         this.epoch = epoch;
+        this.clientTelemetryReporter = CommonClientConfigs.telemetryReporter(txIdPrefix, producerConfig);
         LOGGER.debug("Created new Producer: {}", this);
     }
+
 
     @Override
     public Future<RecordMetadata> send(ProducerRecord<K, V> record) {
@@ -101,6 +103,15 @@ public class CloseSafeProducer<K, V> implements Producer<K, V> {
     @Override
     public Map<MetricName, ? extends Metric> metrics() {
         return this.delegate.metrics();
+    }
+
+    @Override
+    public Uuid clientInstanceId(Duration timeout) {
+        if (clientTelemetryReporter.isEmpty()) {
+            throw new IllegalStateException("Telemetry is not enabled. Set config `" + ProducerConfig.ENABLE_METRICS_PUSH_CONFIG + "` to `true`.");
+        }
+
+        return ClientTelemetryUtils.fetchClientInstanceId(clientTelemetryReporter.get(), timeout);
     }
 
     @Override

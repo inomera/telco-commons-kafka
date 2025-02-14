@@ -1,5 +1,6 @@
 plugins {
     id 'java-library'
+    id 'maven-publish'
 }
 
 apply from: "${rootProject.rootDir}/gradle/tests.gradle"
@@ -7,8 +8,8 @@ apply from: "${rootProject.rootDir}/gradle/publishing.gradle"
 
 group = 'com.inomera.telco.commons'
 version = project.file('VERSION').text.trim()
-sourceCompatibility = JavaVersion.VERSION_17
-targetCompatibility = JavaVersion.VERSION_17
+sourceCompatibility = JavaVersion.VERSION_23
+targetCompatibility = JavaVersion.VERSION_23
 
 configurations {
     compileOnly {
@@ -18,7 +19,6 @@ configurations {
         extendsFrom compileOnly
     }
 }
-compileJava.dependsOn(processResources)
 
 dependencies {
     implementation "com.inomera.telco.commons:lang:${versions.lang}"
@@ -26,7 +26,7 @@ dependencies {
     implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
     implementation "org.slf4j:slf4j-api:${versions.slf4j}"
 
-    implementation 'com.google.protobuf:protobuf-java:3.21.7'
+    implementation 'com.google.protobuf:protobuf-java:4.29.3'
 
     implementation "org.projectlombok:lombok:${versions.lombok}"
     annotationProcessor "org.projectlombok:lombok:${versions.lombok}"
@@ -37,7 +37,7 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter-engine:${versions.jupiter}"
     testImplementation "org.mockito:mockito-core:${versions.mockito_core}"
     testImplementation "org.mockito:mockito-junit-jupiter:${versions.mockito_jupiter}"
-    testImplementation "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+    testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 publishing {

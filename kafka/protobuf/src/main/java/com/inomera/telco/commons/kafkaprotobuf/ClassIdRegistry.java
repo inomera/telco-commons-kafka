@@ -1,12 +1,12 @@
 package com.inomera.telco.commons.kafkaprotobuf;
 
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.Parser;
 
 public interface ClassIdRegistry {
-    Integer getId(Class<? extends GeneratedMessageV3> classInstance);
+    Integer getId(Class<? extends GeneratedMessage> classInstance);
 
-    Class<? extends GeneratedMessageV3> getClass(Integer classId);
+    Class<? extends GeneratedMessage> getClass(Integer classId);
 
-    Parser<? extends GeneratedMessageV3> getParser(Integer classId);
+    Parser<? extends GeneratedMessage> getParser(Integer classId);
 }
