@@ -37,7 +37,7 @@ public class DefaultRecordRetryer implements RecordRetryer {
             retryContext.setMaxCount(kafkaListener.retryCount());
             retryContext.setRetry(result);
             boolean offered = retryQueue.offer(retryContext);
-            LOG.debug("offered for retry -> {}", retryContext);
+            LOG.debug("offered : {} for retry -> {}", offered, retryContext);
         }
     }
 }

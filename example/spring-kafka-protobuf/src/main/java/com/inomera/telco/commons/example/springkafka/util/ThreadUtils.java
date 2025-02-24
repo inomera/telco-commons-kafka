@@ -18,6 +18,6 @@ public interface ThreadUtils {
             // ignore
         }
         stopwatch.stop();
-        LOG.info("Duration millis: {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
+        LOG.trace("Duration millis: {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
     }
 }

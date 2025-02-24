@@ -1,5 +1,6 @@
 package com.inomera.telco.commons.springkafka.consumer.executor;
 
+import com.inomera.telco.commons.springkafka.consumer.executor.virtual.PartitionKeyAwareVirtualExecutorStrategy;
 import com.inomera.telco.commons.springkafka.util.ThreadPoolExecutorSpec;
 import com.inomera.telco.commons.springkafka.util.ThreadPoolExecutorUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -12,7 +13,40 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Function;
 
 /**
+ * DynamicNamedExecutorStrategy is an implementation of the {@link ExecutorStrategy} interface.
+ * It provides the ability to dynamically manage named thread pool executors, allowing
+ * fine-grained control over the allocation of tasks to specific executors based on their
+ * associated names. This strategy is particularly useful for managing thread pools in scenarios
+ * where tasks need to be processed in thread pools that are dynamically determined.
+ *
+ * <p>There are two main use cases for this strategy:
+ * <ul>
+ *     <li><b>IO-bound tasks:</b> Use {@link PartitionKeyAwareVirtualExecutorStrategy} for tasks
+ *         involving IO operations such as database queries, API calls, or messaging. This leverages virtual threads.</li>
+ *     <li><b>CPU-bound tasks:</b> Use this class for processor-intensive operations,
+ *         such as multi-threaded computations, leveraging OS threads.</li>
+ * </ul>
+ *
+ * Features:
+ * <ul>
+ *     <li>Dynamic creation and configuration of thread pool executors with named keys.</li>
+ *     <li>Ability to map {@link ConsumerRecord} objects to specific executors using custom logic.</li>
+ *     <li>Pre-configuration and management of default executor instances.</li>
+ *     <li>Thread safety ensured via synchronization mechanisms.</li>
+ * </ul>
+ *
+ * Example Usage:
+ * <pre>{@code
+ * DynamicNamedExecutorStrategy strategy = new DynamicNamedExecutorStrategy(
+ *     defaultExecutorSpec, consumerRecord -> "customExecutorName");
+ *
+ * strategy.configureExecutor("executorName", customExecutorSpec);
+ * ConsumerRecord record = ...;
+ * ThreadPoolExecutor executor = strategy.get(record);
+ * }</pre>
+ *
  * @author Serdar Kuzucu
+ * @author Turgay Can
  */
 public class DynamicNamedExecutorStrategy implements ExecutorStrategy {
     private static final Logger LOG = LoggerFactory.getLogger(DynamicNamedExecutorStrategy.class);

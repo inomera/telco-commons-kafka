@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author Serdar Kuzucu
+ * @author Turgay Can
  */
 public class SmartKafkaMessageConsumer implements KafkaMessageConsumer {
     private final ConsumerPoller consumerPoller;

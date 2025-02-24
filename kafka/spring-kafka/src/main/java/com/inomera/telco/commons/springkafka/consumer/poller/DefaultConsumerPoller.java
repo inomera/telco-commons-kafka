@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author Serdar Kuzucu
+ * @author Turgay Can
  */
 public class DefaultConsumerPoller implements ConsumerPoller, Runnable, ConsumerRebalanceListener {
     private static final Logger LOG = LoggerFactory.getLogger(DefaultConsumerPoller.class);
@@ -78,7 +79,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
             final Collection<TopicPartition> toBePause = new HashSet<>();
             final Collection<TopicPartition> toBeResume = new HashSet<>();
             TopicPartition tp;
-            int pollWaitMs = 3000;
+            int pollWaitMs = 30;
             pollLoop:
             while (running.get()) {
                 final ConsumerRecords<String, ?> records = consumer.poll(Duration.of(pollWaitMs, ChronoUnit.MILLIS));
@@ -97,6 +98,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
 
                         tp = new TopicPartition(rec.topic(), rec.partition());
                         partitionFutures = inProgressMessages.get(tp);
+                        LOG.trace("Polling partition {} for topic {}. size : {} ", tp, rec.topic(), partitionFutures.size());
                         try {
                             synchronized (partitionFutures) {
                                 partitionFutures.add(consumerRecordHandler.handle(rec));
@@ -210,6 +212,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
             offsetMap.put(new TopicPartition(rec.topic(), rec.partition()),
                     new OffsetAndMetadata(rec.offset() + 1));
             consumer.commitSync(offsetMap);
+            LOG.debug("Committing offset {} for topic {}. rec : {}", rec.topic(), rec.partition(), rec.value());
             return true;
         } catch (CommitFailedException e) {
             LOG.error("Offset commit failed for {}. offset={}, request={}",
@@ -226,6 +229,7 @@ public class DefaultConsumerPoller implements ConsumerPoller, Runnable, Consumer
         closeConsumerSilently();
         this.recordRetryer = new DefaultRecordRetryer();
         this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), valueDeserializer);
+        // consumer thread is not thread safe and not to support multi threading. It has a CPU bounded context!! Do not change the OS based thread factory
         final ThreadFactory threadFactory = this.consumerThreadFactory == null
                 ? new IncrementalNamingThreadFactory(kafkaConsumerProperties.getGroupId()) : this.consumerThreadFactory;
         this.executorService = new ThreadPoolExecutor(0, 1, 0, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), threadFactory);

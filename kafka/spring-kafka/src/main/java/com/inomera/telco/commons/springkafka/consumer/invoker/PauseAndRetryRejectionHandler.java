@@ -1,6 +1,6 @@
 package com.inomera.telco.commons.springkafka.consumer.invoker;
 
-import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
+import com.inomera.telco.commons.lang.thread.IncrementalNamingVirtualThreadFactory;
 import com.inomera.telco.commons.springkafka.consumer.executor.ExecutorStrategy;
 import com.inomera.telco.commons.springkafka.consumer.poller.ConsumerPoller;
 import com.inomera.telco.commons.springkafka.util.ThreadPoolExecutorUtils;
@@ -45,7 +45,7 @@ public class PauseAndRetryRejectionHandler implements RejectionHandler {
     public void handleReject(Set<ConsumerRecord<String, ?>> records, FutureTask<BulkInvokerResult> futureTask) {
         final ConsumerRecord<String, ?> firstRecord = records.iterator().next();
         final TopicPartition topicPartition = new TopicPartition(firstRecord.topic(), firstRecord.partition());
-        LOG.info("handleReject::rejected execution of {}", topicPartition);
+        LOG.info("bulk handleReject::rejected execution of {}", topicPartition);
 
         consumerPoller.pause(topicPartition);
         retryExecutor.submit(new BulkRetryTask(futureTask, records));
@@ -61,7 +61,7 @@ public class PauseAndRetryRejectionHandler implements RejectionHandler {
     public void start() {
         retryExecutor = new ThreadPoolExecutor(retryPoolCoreThreadCount, retryPoolMaxThreadCount,
                 retryPoolKeepAliveTime, retryPoolKeepAliveTimeUnit, new LinkedBlockingQueue<>(),
-                new IncrementalNamingThreadFactory("invoker-rejection-retry-"));
+                new IncrementalNamingVirtualThreadFactory("invoker-rejection-retry-"));
     }
 
     public void setRetryPoolCoreThreadCount(int retryPoolCoreThreadCount) {
@@ -84,7 +84,7 @@ public class PauseAndRetryRejectionHandler implements RejectionHandler {
     private class RetryTask implements Runnable {
         private final FutureTask<InvokerResult> futureTask;
         private final ConsumerRecord<String, ?> record;
-        private long initializationTimestamp = System.currentTimeMillis();
+        private final long initializationTimestamp = System.currentTimeMillis();
 
         @Override
         public void run() {
@@ -122,7 +122,7 @@ public class PauseAndRetryRejectionHandler implements RejectionHandler {
     private class BulkRetryTask implements Runnable {
         private final FutureTask<BulkInvokerResult> futureTask;
         private final Set<ConsumerRecord<String, ?>> records;
-        private long initializationTimestamp = System.currentTimeMillis();
+        private final long initializationTimestamp = System.currentTimeMillis();
 
         @Override
         public void run() {
@@ -139,18 +139,18 @@ public class PauseAndRetryRejectionHandler implements RejectionHandler {
                         executor.submit(futureTask);
                         return;
                     } catch (RejectedExecutionException e) {
-                        LOG.debug("{} rejected by exception: {}", firstRecord.topic(), e.getMessage());
+                        LOG.debug("bulk {} rejected by exception: {}", firstRecord.topic(), e.getMessage());
                     }
                     if (!executor.getQueue().offer(futureTask, 5, TimeUnit.MILLISECONDS)) {
                         final long elapsedTime = System.currentTimeMillis() - initializationTimestamp;
                         if (elapsedTime > 2000) {
-                            LOG.info("handleReject::{} threads are busy more than {} seconds. Retry queue size is {}",
+                            LOG.info("bulk handleReject::{} threads are busy more than {} seconds. Retry queue size is {}",
                                     firstRecord.topic(), elapsedTime, retryExecutor.getQueue().size());
                         }
                         retryExecutor.submit(this);
                     }
                 } catch (InterruptedException e) {
-                    LOG.info("handleReject::execution queue interrupted::{}-{}", firstRecord.topic(), firstRecord.partition());
+                    LOG.info("bulk handleReject::execution queue interrupted::{}-{}", firstRecord.topic(), firstRecord.partition());
                     Thread.currentThread().interrupt();
                 }
             }

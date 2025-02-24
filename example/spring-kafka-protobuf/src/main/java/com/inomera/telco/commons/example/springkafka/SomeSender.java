@@ -2,16 +2,12 @@ package com.inomera.telco.commons.example.springkafka;
 
 
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.time.StopWatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import player.command.PlayerCreateCommandProto;
-import player.event.PlayerNotificationEventProto;
-import todo.TodoRequestProto;
-import todo.event.TodoInfoRequestEventProto;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,29 +22,31 @@ public class SomeSender {
     public final AtomicInteger atomicInteger = new AtomicInteger(1);
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    @Scheduled(initialDelay = 10000, fixedDelay = 10000)
+    @Scheduled(fixedDelay = 1000)
     public void publishRandomText() {
         if (running.get()) {
             LOG.debug("Senttttt");
             return;
         }
-        running.set(true);
+        if (atomicInteger.getAndIncrement() == 1) {
+            running.set(true);
+        }
 
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
         LOG.info("Sending event");
-        for (int i = 0; i < 10_000; i++) {
+        for (int i = 0; i < 100_000; i++) {
 //            ThreadUtils.sleepQuietly(3000);
 //            final int value = atomicInteger.incrementAndGet();
-            if (i % 2 == 0) {
-                eventPublisher.fire(PlayerNotificationEventProto.newBuilder()
-                        .setId(RandomUtils.secure().randomLong())
-                        .setName(i + "-yattara")
-                        .setStatus("active")
-                        .setLogTrackKey(TransactionKeyUtils.generateTxKey())
-                        .build());
-                continue;
-            }
+//            if (i % 2 == 0) {
+//                eventPublisher.fire(PlayerNotificationEventProto.newBuilder()
+//                        .setId(RandomUtils.secure().randomLong())
+//                        .setName(i + "-yattara")
+//                        .setStatus("active")
+//                        .setLogTrackKey(TransactionKeyUtils.generateTxKey())
+//                        .build());
+//            continue;
+//            }
             eventPublisher.fire(PlayerCreateCommandProto.newBuilder()
                     .setTxKey(i + "-txKey")
                     .setLogTrackKey(TransactionKeyUtils.generateTxKey())

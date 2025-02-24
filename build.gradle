@@ -9,7 +9,7 @@ ext {
     versions = [
             //main libs
             kafka_clients  : '3.9.0',
-            lang           : '1.1.1',
+            lang           : '3.1.0',
             //ext libs
             commons_lang3  : '3.17.0',
             lombok         : '1.18.36',

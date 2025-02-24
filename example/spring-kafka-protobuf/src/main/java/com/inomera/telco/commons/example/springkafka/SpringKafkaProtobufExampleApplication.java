@@ -7,6 +7,7 @@ import com.inomera.telco.commons.kafkaprotobuf.KafkaProtobufDeserializer;
 import com.inomera.telco.commons.kafkaprotobuf.KafkaProtobufSerializer;
 import com.inomera.telco.commons.springkafka.annotation.EnableKafkaListeners;
 import com.inomera.telco.commons.springkafka.builder.KafkaConsumerBuilder;
+import com.inomera.telco.commons.springkafka.builder.virtual.VirtualKafkaConsumerBuilder;
 import com.inomera.telco.commons.springkafka.consumer.*;
 import com.inomera.telco.commons.springkafka.producer.KafkaMessagePublisher;
 import com.inomera.telco.commons.springkafka.producer.KafkaTransactionalMessagePublisher;
@@ -16,16 +17,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import player.command.PlayerCreateCommandProto;
-import player.event.PlayerNotificationEventProto;
-import todo.command.TodoUpdateCommandProto;
-import todo.event.TodoInfoRequestEventProto;
 
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import static com.inomera.telco.commons.example.domain.constant.DomainConstants.CLASS_IDS;
 import static com.inomera.telco.commons.example.domain.constant.KafkaTopicConstants.TOPIC_PLAYER_CREATE_COMMAND;
-import static com.inomera.telco.commons.example.domain.constant.KafkaTopicConstants.TOPIC_PLAYER_NOTIFICATION_EVENT;
 import static org.apache.kafka.clients.producer.ProducerConfig.TRANSACTIONAL_ID_CONFIG;
 
 /**
@@ -35,6 +32,10 @@ import static org.apache.kafka.clients.producer.ProducerConfig.TRANSACTIONAL_ID_
 @EnableKafkaListeners
 @EnableScheduling
 public class SpringKafkaProtobufExampleApplication {
+
+    public static final String EVENT_LOGGER = "event-logger";
+    public static final String VIRTUAL_EVENT_LOGGER = "virtual-event-logger";
+
     public static void main(String[] args) {
         SpringApplication.run(SpringKafkaProtobufExampleApplication.class, args);
     }
@@ -83,18 +84,42 @@ public class SpringKafkaProtobufExampleApplication {
     }
 
     @Bean
+    public KafkaMessageConsumer virtualConsumer(VirtualKafkaConsumerBuilder virtualKafkaConsumerBuilder,
+                                         KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties,
+                                         KafkaProtobufDeserializer kafkaDeserializer) {
+
+        return virtualKafkaConsumerBuilder.properties(defaultKafkaConsumerConfigurationProperties.getProperties())
+                .groupId(VIRTUAL_EVENT_LOGGER)
+                .topics(KafkaTopicUtils.getTopicNames(
+                        PlayerCreateCommandProto.class
+                ))
+                .offsetCommitStrategy(defaultKafkaConsumerConfigurationProperties.getOffsetCommitStrategy())
+                .valueDeserializer(kafkaDeserializer)
+                .autoPartitionPause(true)
+                .invoker()
+                .unordered()
+                .dynamicNamedExecutors()
+                .executorName("virtual." + TOPIC_PLAYER_CREATE_COMMAND)
+                .and()
+                .and()
+                .and()
+                .threadStore(consumerThreadStore())
+                .build();
+    }
+
+    @Bean
     public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder,
                                          KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties,
                                          KafkaProtobufDeserializer kafkaDeserializer) {
 
         int threads = defaultKafkaConsumerConfigurationProperties.getNumberOfInvokerThreads();
         return builder.properties(defaultKafkaConsumerConfigurationProperties.getProperties())
-                .groupId("event-logger")
+                .groupId(EVENT_LOGGER)
                 .topics(KafkaTopicUtils.getTopicNames(
-                        PlayerCreateCommandProto.class,
-                        PlayerNotificationEventProto.class,
-                        TodoUpdateCommandProto.class,
-                        TodoInfoRequestEventProto.class
+                        PlayerCreateCommandProto.class
+//                        PlayerNotificationEventProto.class,
+//                        TodoUpdateCommandProto.class,
+//                        TodoInfoRequestEventProto.class
                 ))
                 .offsetCommitStrategy(defaultKafkaConsumerConfigurationProperties.getOffsetCommitStrategy())
                 .valueDeserializer(kafkaDeserializer)
@@ -103,14 +128,14 @@ public class SpringKafkaProtobufExampleApplication {
                 .unordered()
                 .dynamicNamedExecutors()
                 .configureExecutor(TOPIC_PLAYER_CREATE_COMMAND, threads, threads, 3, TimeUnit.MINUTES)
-                .configureExecutor(TOPIC_PLAYER_NOTIFICATION_EVENT, threads, threads, 3, TimeUnit.MINUTES)
+//                .configureExecutor(TOPIC_PLAYER_NOTIFICATION_EVENT, threads, threads, 3, TimeUnit.MINUTES)
                 .queueCapacity(100_000)
-//                .configureExecutor("example.unlistened-topic", 3, 5, 1, TimeUnit.MINUTES)
+                .configureExecutor("example.unlistened-topic", 3, 5, 1, TimeUnit.MINUTES)
                 .and()
                 .and()
                 .and()
                 .threadStore(consumerThreadStore())
-                .buildBulk();
+                .build();
     }
 
     @Bean
