@@ -22,20 +22,21 @@ public class SomeSender {
     public final AtomicInteger atomicInteger = new AtomicInteger(1);
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    @Scheduled(fixedDelay = 1000)
+    @Scheduled(fixedDelay = 5000)
     public void publishRandomText() {
-        if (running.get()) {
-            LOG.debug("Senttttt");
+        if (true || running.get()) {
+            LOG.trace("do not send max limit reached");
             return;
         }
-        if (atomicInteger.getAndIncrement() == 1) {
+        if (atomicInteger.getAndIncrement() == 10) {
             running.set(true);
+            LOG.debug("Senttttt");
         }
 
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
         LOG.info("Sending event");
-        for (int i = 0; i < 100_000; i++) {
+        for (int i = 0; i < 1_000_000; i++) {
 //            ThreadUtils.sleepQuietly(3000);
 //            final int value = atomicInteger.incrementAndGet();
 //            if (i % 2 == 0) {

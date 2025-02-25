@@ -107,36 +107,36 @@ public class SpringKafkaProtobufExampleApplication {
                 .build();
     }
 
-    @Bean
-    public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder,
-                                         KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties,
-                                         KafkaProtobufDeserializer kafkaDeserializer) {
-
-        int threads = defaultKafkaConsumerConfigurationProperties.getNumberOfInvokerThreads();
-        return builder.properties(defaultKafkaConsumerConfigurationProperties.getProperties())
-                .groupId(EVENT_LOGGER)
-                .topics(KafkaTopicUtils.getTopicNames(
-                        PlayerCreateCommandProto.class
-//                        PlayerNotificationEventProto.class,
-//                        TodoUpdateCommandProto.class,
-//                        TodoInfoRequestEventProto.class
-                ))
-                .offsetCommitStrategy(defaultKafkaConsumerConfigurationProperties.getOffsetCommitStrategy())
-                .valueDeserializer(kafkaDeserializer)
-                .autoPartitionPause(true)
-                .invoker()
-                .unordered()
-                .dynamicNamedExecutors()
-                .configureExecutor(TOPIC_PLAYER_CREATE_COMMAND, threads, threads, 3, TimeUnit.MINUTES)
-//                .configureExecutor(TOPIC_PLAYER_NOTIFICATION_EVENT, threads, threads, 3, TimeUnit.MINUTES)
-                .queueCapacity(100_000)
-                .configureExecutor("example.unlistened-topic", 3, 5, 1, TimeUnit.MINUTES)
-                .and()
-                .and()
-                .and()
-                .threadStore(consumerThreadStore())
-                .build();
-    }
+//    @Bean
+//    public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder,
+//                                         KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties,
+//                                         KafkaProtobufDeserializer kafkaDeserializer) {
+//
+//        int threads = defaultKafkaConsumerConfigurationProperties.getNumberOfInvokerThreads();
+//        return builder.properties(defaultKafkaConsumerConfigurationProperties.getProperties())
+//                .groupId(EVENT_LOGGER)
+//                .topics(KafkaTopicUtils.getTopicNames(
+//                        PlayerCreateCommandProto.class
+////                        PlayerNotificationEventProto.class,
+////                        TodoUpdateCommandProto.class,
+////                        TodoInfoRequestEventProto.class
+//                ))
+//                .offsetCommitStrategy(defaultKafkaConsumerConfigurationProperties.getOffsetCommitStrategy())
+//                .valueDeserializer(kafkaDeserializer)
+//                .autoPartitionPause(true)
+//                .invoker()
+//                .unordered()
+//                .dynamicNamedExecutors()
+//                .configureExecutor(TOPIC_PLAYER_CREATE_COMMAND, threads, threads, 3, TimeUnit.MINUTES)
+////                .configureExecutor(TOPIC_PLAYER_NOTIFICATION_EVENT, threads, threads, 3, TimeUnit.MINUTES)
+//                .queueCapacity(100_000)
+//                .configureExecutor("example.unlistened-topic", 3, 5, 1, TimeUnit.MINUTES)
+//                .and()
+//                .and()
+//                .and()
+//                .threadStore(consumerThreadStore())
+//                .build();
+//    }
 
     @Bean
     public EventPublisher eventPublisher(KafkaMessagePublisher<? super GeneratedMessage> kafkaPublisher) {

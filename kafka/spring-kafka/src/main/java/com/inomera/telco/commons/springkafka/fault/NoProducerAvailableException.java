@@ -1,14 +1,23 @@
 package com.inomera.telco.commons.springkafka.fault;
 
+import lombok.Getter;
+
 import java.io.Serial;
 
 /**
  * Exception when no producer is available.
  */
+@Getter
 public class NoProducerAvailableException extends RuntimeException {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    /**
+     * -- GETTER --
+     *  Return the transaction id prefix that was used to create the producer and failed.
+     *
+     * @return the transaction id prefix.
+     */
     private final String txIdPrefix;
 
     /**
@@ -22,12 +31,4 @@ public class NoProducerAvailableException extends RuntimeException {
         this.txIdPrefix = txIdPrefix;
     }
 
-    /**
-     * Return the transaction id prefix that was used to create the producer and failed.
-     *
-     * @return the transaction id prefix.
-     */
-    public String getTxIdPrefix() {
-        return this.txIdPrefix;
-    }
 }

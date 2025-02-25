@@ -40,13 +40,19 @@ import java.util.concurrent.TimeUnit;
 public class PartitionKeyAwareExecutorStrategy implements ExecutorStrategy {
     private static final Logger LOG = LoggerFactory.getLogger(PartitionKeyAwareExecutorStrategy.class);
 
-    /** Number of dedicated worker threads to handle Kafka records. */
+    /**
+     * Number of dedicated worker threads to handle Kafka records.
+     */
     private final int numberOfInvokerThreads;
 
-    /** Factory to create worker threads. */
+    /**
+     * Factory to create worker threads.
+     */
     private final ThreadFactory invokerThreadFactory;
 
-    /** Array of thread pool executors assigned to partitioned workloads. */
+    /**
+     * Array of thread pool executors assigned to partitioned workloads.
+     */
     private ThreadPoolExecutor[] executors;
 
     /**
@@ -105,12 +111,12 @@ public class PartitionKeyAwareExecutorStrategy implements ExecutorStrategy {
      *     <li>Otherwise, the hash code of the message value is used.</li>
      * </ul>
      * </p>
+     * If you want to customize your partition key, you should override the method
      *
      * @param record The Kafka consumer record.
      * @return The computed partition key.
      */
-    //TODO : method should be protected abstract or interface for customization
-    private int getPartitionKey(ConsumerRecord<String, ?> record) {
+    protected int getPartitionKey(ConsumerRecord<String, ?> record) {
         final Object message = record.value();
 
         if (message == null) {
@@ -120,9 +126,6 @@ public class PartitionKeyAwareExecutorStrategy implements ExecutorStrategy {
         if (message instanceof PartitionKeyAware) {
             return ((PartitionKeyAware) message).getPartitionKey().hashCode();
         }
-
-        // TODO: Extend support for Protobuf message partitioning
-
 
         if (record.key() != null) {
             return record.key().hashCode();

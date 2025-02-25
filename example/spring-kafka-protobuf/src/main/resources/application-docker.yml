@@ -36,7 +36,7 @@ kafka-consumers:
       max.poll.records=1000
       reconnect.backoff.ms=5000
       reconnect.backoff.max.ms=9223372036854775806
-    number-of-invoker-threads: 360
+    number-of-invoker-threads: 720
     offset-commit-strategy: AT_MOST_ONCE_BULK
     pollerThreadProperties: |-
       poller.thread.checker.active=true

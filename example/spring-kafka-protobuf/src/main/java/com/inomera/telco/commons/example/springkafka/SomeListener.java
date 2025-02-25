@@ -35,7 +35,7 @@ public class SomeListener {
 
         ThreadUtils.sleepQuietly(100);
         int count = counter.incrementAndGet();
-        if (count % 10_000 == 0) {
+        if (count % 1_000_000 == 0) {
             LOG.info("OS THREAD!! count: {}, firstTime: {}, last : {}, lastTime={}, duration : {}", count, msgHolder.get("firstTime"), messages, Instant.now().toEpochMilli(),
                     Duration.ofMillis(Instant.now().toEpochMilli() - msgHolder.get("firstTime")));
         }
@@ -47,7 +47,7 @@ public class SomeListener {
 
         ThreadUtils.sleepQuietly(100);
         int count = vCounter.incrementAndGet();
-        if (count % 10_000 == 0) {
+        if (count % 1_000_000 == 0) {
             LOG.info("VIRTUAL THREAD!! count: {}, firstTime: {}, last : {}, lastTime={}, duration : {}", count, vMsgHolder.get("firstTime"), messages, Instant.now().toEpochMilli(),
                     Duration.ofMillis(Instant.now().toEpochMilli() - vMsgHolder.get("firstTime")));
         }

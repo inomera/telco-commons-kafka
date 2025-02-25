@@ -43,11 +43,11 @@ public class PartitionKeyAwareVirtualExecutorStrategy implements ParameterBasedV
 
     /**
      * A factory for creating new threads.
-     *
+     * <p>
      * This variable is used to supply threads for partition-specific executors. By encapsulating
      * thread creation in a factory, it allows customization of thread properties such as naming,
      * priority, or daemon status. This contributes to better thread pool management and debugging.
-     *
+     * <p>
      * Typically, each partition in the {@link PartitionKeyAwareVirtualExecutorStrategy} is assigned
      * threads created by this factory, ensuring a tailored concurrency execution strategy for Kafka
      * records.
@@ -111,9 +111,12 @@ public class PartitionKeyAwareVirtualExecutorStrategy implements ParameterBasedV
      * Ensures that records with the same partition key are processed in order by the same thread.
      *
      * @param record The Kafka {@link ConsumerRecord} to extract the partition key from.
+     * @param record The Kafka consumer record.
      * @return A hash-based partition key used to select the appropriate executor.
+     * <p>
+     * If you want to customize your partition key, you should override the method
      */
-    private int getPartitionKey(ConsumerRecord<String, ?> record) {
+    protected int getPartitionKey(ConsumerRecord<String, ?> record) {
         final Object message = record.value();
 
         if (message == null) {
@@ -121,15 +124,14 @@ public class PartitionKeyAwareVirtualExecutorStrategy implements ParameterBasedV
         }
 
         if (message instanceof PartitionKeyAware) {
-            return Math.abs(((PartitionKeyAware) message).getPartitionKey().hashCode()) % partitionPoolSize;
+            return ((PartitionKeyAware) message).getPartitionKey().hashCode();
         }
-
-        // TODO: Extend support for Protobuf message partitioning
 
         if (record.key() != null) {
-            return Math.abs(record.key().hashCode()) % partitionPoolSize;
+            return record.key().hashCode();
         }
 
-        return Math.abs(message.hashCode()) % partitionPoolSize;
+        return message.hashCode();
     }
+
 }
