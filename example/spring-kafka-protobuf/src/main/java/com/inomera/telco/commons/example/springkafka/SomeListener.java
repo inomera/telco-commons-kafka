@@ -1,7 +1,7 @@
 package com.inomera.telco.commons.example.springkafka;
 
 import com.google.protobuf.GeneratedMessage;
-import com.inomera.telco.commons.example.springkafka.util.ThreadUtils;
+import com.inomera.telco.commons.lang.thread.ThreadUtils;
 import com.inomera.telco.commons.springkafka.annotation.KafkaListener;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

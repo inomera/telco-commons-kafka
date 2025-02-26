@@ -20,11 +20,11 @@ configurations {
 }
 
 dependencies {
-    implementation 'org.springframework:spring-core:6.2.1'
-    implementation 'org.springframework:spring-context:6.2.1'
+    api 'org.springframework:spring-core:6.2.1'
+    api 'org.springframework:spring-context:6.2.1'
+    api "com.inomera.telco.commons:lang:${versions.lang}"
+    api "org.apache.kafka:kafka-clients:${versions.kafka_clients}"
 
-    implementation "com.inomera.telco.commons:lang:${versions.lang}"
-    implementation "org.apache.kafka:kafka-clients:${versions.kafka_clients}"
     implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
     implementation "org.slf4j:slf4j-api:${versions.slf4j}"
 

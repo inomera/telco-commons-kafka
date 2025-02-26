@@ -26,7 +26,7 @@ dependencies {
     implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
     implementation "org.slf4j:slf4j-api:${versions.slf4j}"
 
-    implementation 'com.google.protobuf:protobuf-java:4.29.3'
+    api 'com.google.protobuf:protobuf-java:4.29.3'
 
     implementation "org.projectlombok:lombok:${versions.lombok}"
     annotationProcessor "org.projectlombok:lombok:${versions.lombok}"
