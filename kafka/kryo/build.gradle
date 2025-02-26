@@ -53,3 +53,8 @@ publishing {
         }
     }
 }
+
+
+tasks.generatePomFileForMavenJavaPublication {
+    destination = file("${project.projectDir}/build/publications/mavenJava/${project.name}-${project.version}.pom")
+}
