@@ -5,6 +5,8 @@ import com.google.protobuf.GeneratedMessage;
 import common.*;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import messaging.OrderMessage;
+import messaging.PaymentMessage;
 import player.PlayerInfoProto;
 import player.PlayerRequestProto;
 import player.PlayerResponseProto;
@@ -40,5 +42,7 @@ public final class DomainConstants {
 		    .put(PlayerInfoProto.class, 13)
 		    .put(PlayerRequestProto.class, 14)
 		    .put(PlayerResponseProto.class, 15)
+		    .put(PaymentMessage.class, 16)
+		    .put(OrderMessage.class, 17)
 		    .build();
 }

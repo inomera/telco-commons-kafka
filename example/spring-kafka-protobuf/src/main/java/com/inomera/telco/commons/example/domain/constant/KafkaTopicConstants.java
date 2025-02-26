@@ -1,9 +1,11 @@
 package com.inomera.telco.commons.example.domain.constant;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.protobuf.GeneratedMessage;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
-import com.google.protobuf.GeneratedMessage;
+import messaging.OrderMessage;
+import messaging.PaymentMessage;
 import player.command.PlayerCreateCommandProto;
 import player.event.PlayerNotificationEventProto;
 import todo.command.TodoUpdateCommandProto;
@@ -17,6 +19,7 @@ public final class KafkaTopicConstants {
     public static final String TOPIC_PLAYER_NOTIFICATION_EVENT = "echo.evt.PlayerNotificationEvent";
     public static final String TOPIC_TODO_UPDATE_COMMAND = "echo.cmd.PlayerCreateCommand";
     public static final String TOPIC_TODO_INFO_REQUEST_EVENT = "echo.evt.TodoInfoRequestEvent";
+    public static final String TOPIC_MESSAGES_EVENT = "echo.evt.messages";
 
     // Put all event/command classes (classes that will be published to kafka)
     // into this map and match them with their topic names
@@ -27,5 +30,7 @@ public final class KafkaTopicConstants {
                     .put(PlayerNotificationEventProto.class, TOPIC_PLAYER_NOTIFICATION_EVENT)
                     .put(TodoUpdateCommandProto.class, TOPIC_TODO_UPDATE_COMMAND)
                     .put(TodoInfoRequestEventProto.class, TOPIC_TODO_INFO_REQUEST_EVENT)
+                    .put(OrderMessage.class, TOPIC_MESSAGES_EVENT)
+                    .put(PaymentMessage.class, TOPIC_MESSAGES_EVENT)
                     .build();
 }

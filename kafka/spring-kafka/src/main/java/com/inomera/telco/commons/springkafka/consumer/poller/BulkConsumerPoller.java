@@ -58,7 +58,7 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
             final Collection<TopicPartition> toBePause = Collections.synchronizedSet(new HashSet<>());
             final Collection<TopicPartition> toBeResume = Collections.synchronizedSet(new HashSet<>());
             TopicPartition tp;
-            int pollWaitMs = 3000;
+            int pollWaitMs = 30;
             pollLoop:
             while (running.get()) {
                 final ConsumerRecords<String, ?> records = consumer.poll(Duration.of(pollWaitMs, ChronoUnit.MILLIS));
@@ -78,6 +78,7 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
                             tp = new TopicPartition(rec.topic(), rec.partition());
                             LOG.trace("tp [{}].", tp);
                             final List<? extends ConsumerRecord<String, ?>> tpRecords = records.records(tp);
+                            LOG.trace("Polling partition {} for topic {}. size : {} ", tp, rec.topic(), tpRecords.size());
                             final Set<ConsumerRecord<String, ?>> consumerRecords = tpRecordsMap.getOrDefault(tp, new LinkedHashSet<>());
                             consumerRecords.addAll(tpRecords);
                             tpRecordsMap.put(tp, consumerRecords);

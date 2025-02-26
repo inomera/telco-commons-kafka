@@ -35,6 +35,8 @@ dependencies {
     implementation "com.google.guava:guava:33.4.0-jre"
     implementation 'org.apache.commons:commons-lang3:3.17.0'
 
+    implementation "com.inomera.telco.commons:lang:${versions.lang}"
+
     implementation project(":spring-kafka")
     implementation project(":kafka-protobuf")
 

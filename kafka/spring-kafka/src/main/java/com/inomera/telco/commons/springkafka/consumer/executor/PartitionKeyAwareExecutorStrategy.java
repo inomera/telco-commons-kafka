@@ -120,7 +120,7 @@ public class PartitionKeyAwareExecutorStrategy implements ExecutorStrategy {
         final Object message = record.value();
 
         if (message == null) {
-            return 0;
+            return record.partition();
         }
 
         if (message instanceof PartitionKeyAware) {

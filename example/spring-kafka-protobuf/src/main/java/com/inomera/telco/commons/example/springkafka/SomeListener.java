@@ -13,8 +13,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.inomera.telco.commons.example.domain.constant.KafkaTopicConstants.TOPIC_PLAYER_CREATE_COMMAND;
-import static com.inomera.telco.commons.example.domain.constant.KafkaTopicConstants.TOPIC_PLAYER_NOTIFICATION_EVENT;
+import static com.inomera.telco.commons.example.domain.constant.KafkaTopicConstants.*;
 import static com.inomera.telco.commons.example.springkafka.SpringKafkaProtobufExampleApplication.EVENT_LOGGER;
 import static com.inomera.telco.commons.example.springkafka.SpringKafkaProtobufExampleApplication.VIRTUAL_EVENT_LOGGER;
 
@@ -41,16 +40,18 @@ public class SomeListener {
         }
     }
 
-    @KafkaListener(groupId = VIRTUAL_EVENT_LOGGER, topics = {TOPIC_PLAYER_CREATE_COMMAND})
-    public void handleVirtual(PlayerCreateCommandProto messages) {
+    @KafkaListener(groupId = VIRTUAL_EVENT_LOGGER, topics = {TOPIC_PLAYER_CREATE_COMMAND, TOPIC_MESSAGES_EVENT}, includeSubclasses = true)
+    public void handleVirtual(GeneratedMessage message) {
         vMsgHolder.putIfAbsent("firstTime", Instant.now().toEpochMilli());
 
         ThreadUtils.sleepQuietly(100);
         int count = vCounter.incrementAndGet();
-        if (count % 1_000_000 == 0) {
-            LOG.info("VIRTUAL THREAD!! count: {}, firstTime: {}, last : {}, lastTime={}, duration : {}", count, vMsgHolder.get("firstTime"), messages, Instant.now().toEpochMilli(),
-                    Duration.ofMillis(Instant.now().toEpochMilli() - vMsgHolder.get("firstTime")));
-        }
+        LOG.info("VIRTUAL THREAD!! count: {}, firstTime: {}, message : {}, lastTime={}, duration : {}", count, vMsgHolder.get("firstTime"), message, Instant.now().toEpochMilli(),
+                Duration.ofMillis(Instant.now().toEpochMilli() - vMsgHolder.get("firstTime")));
+//        if (count % 1_000_000 == 0) {
+//            LOG.info("VIRTUAL THREAD!! count: {}, firstTime: {}, last : {}, lastTime={}, duration : {}", count, vMsgHolder.get("firstTime"), messages, Instant.now().toEpochMilli(),
+//                    Duration.ofMillis(Instant.now().toEpochMilli() - vMsgHolder.get("firstTime")));
+//        }
     }
 
     @KafkaListener(groupId = "event-logger", topics = {TOPIC_PLAYER_NOTIFICATION_EVENT, TOPIC_PLAYER_CREATE_COMMAND}, includeSubclasses = true)

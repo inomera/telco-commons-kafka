@@ -69,7 +69,8 @@ public class PartitionKeyAwareVirtualExecutorStrategy implements ParameterBasedV
     @Override
     public ExecutorService get(ConsumerRecord<String, ?> record) {
         int partitionKey = getPartitionKey(record);
-        return partitionExecutors.computeIfAbsent(partitionKey, key ->
+        final int partitionVirtualIndex = Math.abs(partitionKey) % partitionPoolSize;
+        return partitionExecutors.computeIfAbsent(partitionVirtualIndex, key ->
                 Executors.newSingleThreadExecutor(this.threadFactory));
     }
 
@@ -120,7 +121,7 @@ public class PartitionKeyAwareVirtualExecutorStrategy implements ParameterBasedV
         final Object message = record.value();
 
         if (message == null) {
-            return 0;
+            return record.partition();
         }
 
         if (message instanceof PartitionKeyAware) {

@@ -2,6 +2,10 @@ package com.inomera.telco.commons.example.springkafka;
 
 
 import lombok.RequiredArgsConstructor;
+import messaging.OrderMessage;
+import messaging.PartitionMessage;
+import messaging.PaymentMessage;
+import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.time.StopWatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,19 +28,20 @@ public class SomeSender {
 
     @Scheduled(fixedDelay = 5000)
     public void publishRandomText() {
-        if (true || running.get()) {
+        if (running.get()) {
             LOG.trace("do not send max limit reached");
             return;
         }
-        if (atomicInteger.getAndIncrement() == 10) {
-            running.set(true);
+        if (atomicInteger.getAndIncrement() == 1) {
+            running.set(false);
             LOG.debug("Senttttt");
         }
 
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
         LOG.info("Sending event");
-        for (int i = 0; i < 1_000_000; i++) {
+        int limitIndex = 5;
+        for (int i = 0; i < limitIndex; i++) {
 //            ThreadUtils.sleepQuietly(3000);
 //            final int value = atomicInteger.incrementAndGet();
 //            if (i % 2 == 0) {
@@ -51,6 +56,22 @@ public class SomeSender {
             eventPublisher.fire(PlayerCreateCommandProto.newBuilder()
                     .setTxKey(i + "-txKey")
                     .setLogTrackKey(TransactionKeyUtils.generateTxKey())
+                    .build());
+            eventPublisher.fire(OrderMessage.newBuilder()
+                    .setCustomerName(i + "-turgay")
+                    .setOrderId(i + "-order")
+                    .setPartition(PartitionMessage.newBuilder()
+                            .setPartitionKey("order-key")
+                            .setLogTrackKey(TransactionKeyUtils.generateTxKey())
+                            .build())
+                    .build());
+            eventPublisher.fire(PaymentMessage.newBuilder()
+                    .setPaymentId(i + "-payment")
+                    .setAmount(RandomUtils.secure().randomDouble())
+                    .setPartition(PartitionMessage.newBuilder()
+                            .setPartitionKey("payment-key")
+                            .setLogTrackKey(TransactionKeyUtils.generateTxKey())
+                            .build())
                     .build());
 //            if (value % 3 == 1) {
 //                eventPublisher.fire(PlayerCreateCommandProto.newBuilder()
@@ -74,6 +95,6 @@ public class SomeSender {
 //                    .build());
         }
         stopWatch.stop();
-        LOG.info("Sent 10_000 events. finished seconds : {}", stopWatch.getTime(TimeUnit.SECONDS));
+        LOG.info("Sent {} events. finished seconds : {}", limitIndex, stopWatch.getTime(TimeUnit.SECONDS));
     }
 }

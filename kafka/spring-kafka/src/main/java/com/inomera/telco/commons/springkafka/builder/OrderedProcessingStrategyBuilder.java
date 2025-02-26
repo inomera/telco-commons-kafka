@@ -12,10 +12,13 @@ import static com.inomera.telco.commons.springkafka.SpringKafkaConstants.INVOKER
 
 /**
  * @author Serdar Kuzucu
+ * @author Turgay Can
  */
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class OrderedProcessingStrategyBuilder {
     private final ConsumerInvokerBuilder consumerInvokerBuilder;
+    private AbstractExecutorStrategyBuilder executorStrategyBuilder;
+
     private int numberOfThreads = 3;
     private ThreadFactory threadFactory;
 
@@ -29,8 +32,21 @@ public class OrderedProcessingStrategyBuilder {
         return this;
     }
 
+    public ConsumerInvokerBuilder custom(ExecutorStrategy executorStrategy) {
+        this.executorStrategyBuilder = new FixedInstanceExecutorStrategyBuilder(executorStrategy);
+        return consumerInvokerBuilder;
+    }
+
     public ConsumerInvokerBuilder and() {
         return this.consumerInvokerBuilder;
+    }
+
+    ExecutorStrategy build(String groupId) {
+        if (executorStrategyBuilder != null) {
+            return this.executorStrategyBuilder.build(groupId);
+        }
+        final ThreadFactory threadFactory = getOrCreateInvokerThreadFactory(groupId);
+        return new PartitionKeyAwareExecutorStrategy(numberOfThreads, threadFactory);
     }
 
     private ThreadFactory getOrCreateInvokerThreadFactory(String groupId) {
@@ -39,10 +55,5 @@ public class OrderedProcessingStrategyBuilder {
         }
 
         return new IncrementalNamingThreadFactory(String.format(INVOKER_THREAD_NAME_FORMAT, groupId));
-    }
-
-    ExecutorStrategy build(String groupId) {
-        final ThreadFactory threadFactory = getOrCreateInvokerThreadFactory(groupId);
-        return new PartitionKeyAwareExecutorStrategy(numberOfThreads, threadFactory);
     }
 }

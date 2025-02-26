@@ -16,6 +16,8 @@ import static com.inomera.telco.commons.springkafka.SpringKafkaConstants.INVOKER
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class OrderedProcessingVirtualStrategyBuilder {
     private final VirtualConsumerInvokerBuilder virtualConsumerInvokerBuilder;
+    private VirtualExecutorStrategyBuilder executorStrategyBuilder;
+
     private int numberOfThreads = 3;
     private ThreadFactory threadFactory;
 
@@ -29,11 +31,19 @@ public class OrderedProcessingVirtualStrategyBuilder {
         return this;
     }
 
+    public VirtualConsumerInvokerBuilder custom(VirtualExecutorStrategy executorStrategy) {
+        this.executorStrategyBuilder = new FixedInstanceVirtualExecutorStrategyBuilder(executorStrategy);
+        return virtualConsumerInvokerBuilder;
+    }
+
     public VirtualConsumerInvokerBuilder and() {
         return this.virtualConsumerInvokerBuilder;
     }
 
     public VirtualExecutorStrategy build(String groupId) {
+        if (executorStrategyBuilder != null) {
+            return this.executorStrategyBuilder.build(groupId);
+        }
         final ThreadFactory threadFactory = getOrCreateInvokerThreadFactory(groupId);
         return new PartitionKeyAwareVirtualExecutorStrategy(numberOfThreads, threadFactory);
     }

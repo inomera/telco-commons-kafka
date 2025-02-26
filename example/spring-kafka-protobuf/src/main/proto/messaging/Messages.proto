@@ -6,6 +6,7 @@ option java_multiple_files = true;
 
 message PartitionMessage {
   string partition_key = 1;
+  string log_track_key = 2;
 }
 
 

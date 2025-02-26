@@ -81,9 +81,8 @@ public class DefaultInMemoryBulkRecordRetryConsumer implements SmartLifecycle, I
             }
             boolean offered = bulkRetryQueue.offer(retryContext);
             LOG.trace("bulk offered : {} retryContext : {}", offered, retryContext);
-        } catch (Exception e) {
-            LOG.error("Exception occurred when offering retryContext : {}", retryContext, e);
-            //swallowed exception
+        } catch (Exception ignored) {
+            LOG.error("Exception occurred when offering retryContext : {}", retryContext, ignored);
         }
     }
 
