@@ -11,53 +11,16 @@ Compatability Matrix
 
 Try to use new versions.
 
-# About This Repo
-
-To publish a version to maven repository, 
-you should edit your local gradle.properties file.
-
-The file is: `/path-to-user-home/.gradle/gradle.properties`
-
-For example: `~/.gradle/gradle.properties`
-
-Add credentials for nexus repository to `gradle.properties` file.
-
-Example `gradle.properties` file:
-
-```
-telcoTeamUsername=********
-telcoTeamPassword=************************
-```
-
-Then execute `gradle` `publish` task on the project.
-
-For example, to publish the project `spring-kafka`, 
-you need to execute the following command in project root:
-
-```
-gradle :spring-kafka:publish
-``` 
-
-The repository will not allow you to publish the same version twice.
-You need to change version of the artifact every time you want to publish.
-
-You can change version in `build.gradle` file of the sub-project.
-
-```
-build.gradle > publishing > publications > mavenJava > version
-```
-
-Please change the version wisely.
-
 ### Important Notes
 
+- Support from JDK23 and 4.X.X version
 - Support from JDK17 and JDK17+
 - Support Spring Boot 3.X.X version
 
+- Use 3.X.X version of spring-kafka library if you are use JDK17 and above version and Spring Boot 3.X.X
 - Use 2.X.X version of kafka-kryo library if you are use JDK17 and above version and Spring Boot 3.X.X
 - Use 2.X.X version of kafka-protobuf library if you are use JDK17 and above version and Spring Boot 3.X.X
 - Use 2.X.X version of kafka-smile library if you are use JDK17 and above version and Spring Boot 3.X.X
-- Use 3.X.X version of spring-kafka library if you are use JDK17 and above version and Spring Boot 3.X.X
 
 
 # How to Use Kafka
@@ -333,44 +296,44 @@ Sample usage of KafkaListener single message
 ```java
 @KafkaListener(groupId = "event-logger", topics = {"mouse-event.click", "mouse-event.dblclick"})
 public void handle(Message message) {
-LOG.info("handle : message={}", message);
-ThreadUtils.sleepQuietly(300);
-if (message instanceof SomethingHappenedConsumerMessage) {
-final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
-if (msg.getTime() % 2 == 0) {
-LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
-return;
-}
-throw new RuntimeException("retry test single message consumer without retry");
-}
+    LOG.info("handle : message={}", message);
+    ThreadUtils.sleepQuietly(300);
+    if (message instanceof SomethingHappenedConsumerMessage) {
+        final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
+        if (msg.getTime() % 2 == 0) {
+            LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
+            return;
+        }
+        throw new RuntimeException("retry test single message consumer without retry");
+    }
 }
 ```
 
 Sample usage of KafkaListener bulk message without retry
 
 ```java
-    @KafkaListener(groupId = "bulk-event-logger", topics = {"mouse-bulk-event.click"}, includeSubclasses = true, retry = NONE)
-    public void bulkHandleClick(Set<AbstractMessage> messages) {
+@KafkaListener(groupId = "bulk-event-logger", topics = {"mouse-bulk-event.click"}, includeSubclasses = true, retry = NONE)
+public void bulkHandleClick(Set<AbstractMessage> messages) {
 	final Message message = messages.iterator().next();
 	LOG.info("handle : message={}, messageCount={}", message, messages.size());
 	ThreadUtils.sleepQuietly(300);
 	if (message instanceof SomethingHappenedConsumerMessage) {
 	    final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
 	    if (msg.getTime() % 2 == 0) {
-		LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
-		return;
+		    LOG.warn("Commit key={}, msg={}", msg.getTxKey(), msg);
+		    return;
 	    }
 	    throw new RuntimeException("retry test bulk message consumer without retry");
 	}
-    }
+}
 ```
 
 Sample usage of KafkaListener bulk message with in memory retry
 
 ```java
 
-    @KafkaListener(groupId = "retry-bulk-event-logger", topics = {"mouse-bulk-event.dblclick"}, includeSubclasses = true, retry = RETRY_IN_MEMORY_TASK, retryCount = 3)
-    public void bulkHandleInMemoryDoubleClick(Set<AbstractMessage> messages) {
+@KafkaListener(groupId = "retry-bulk-event-logger", topics = {"mouse-bulk-event.dblclick"}, includeSubclasses = true, retry = RETRY_IN_MEMORY_TASK, retryCount = 3)
+public void bulkHandleInMemoryDoubleClick(Set<AbstractMessage> messages) {
 	final Message message = messages.iterator().next();
 	LOG.info("handle : message={}, messageCount={}", message, messages.size());
 
@@ -378,15 +341,17 @@ Sample usage of KafkaListener bulk message with in memory retry
 	if (message instanceof SomethingHappenedConsumerMessage) {
 	    final SomethingHappenedConsumerMessage msg = (SomethingHappenedConsumerMessage) message;
 	    if (msg.getTime() % 2 == 0) {
-		LOG.info("Commit key={}, msg={}", msg.getTxKey(), msg);
-		return;
+		    LOG.info("Commit key={}, msg={}", msg.getTxKey(), msg);
+		    return;
 	    }
 	    throw new RuntimeException("retry test bulk message with in memory retry");
 	}
-    }
+}
 
 ```
 
+
+@KafkaListener annotation capabilities
 
 ```java
 /*
@@ -430,3 +395,69 @@ RETRY_IN_MEMORY_TASK
 }
 ```
 
+## Publishing
+
+To publish a version to maven repository,
+you should create a gradle.properties file in the root directory of this project.
+
+The file is: `/path-to-project/gradle.properties`
+
+This file is included in .gitignore file.
+You should not commit it since it contains sensitive information.
+
+Add credentials for maven repository to `gradle.properties` file.
+
+Example `gradle.properties` file:
+
+```
+mavenReleaseUrl=https://oss.sonatype.org/service/local/staging/deploy/maven2/
+mavenSnapshotUrl=https://oss.sonatype.org/content/repositories/snapshots/
+mavenUsername=************************
+mavenPassword=************************
+mavenPackageGroup=com.inomera
+
+signing.keyId=******
+signing.password=******
+signing.secretKeyRingFile=******.gpg
+```
+
+Then you need to invoke `release.sh` script in the project root directory.
+
+```sh
+# When the latest VERSION is 1.1.1
+
+./release.sh --release-type patch --project $projectName
+# New version is 1.1.2
+
+./release.sh --release-type minor --project $projectName
+# New version is 1.2.0
+
+./release.sh --release-type major --project $projectName
+# New version is 2.0.0
+```
+
+To publish a snapshot release, use `--snapshot` flag as follows:
+
+```sh
+./release.sh --release-type latest --project $projectName --snapshot
+```
+
+Then execute `gradle` `publish` task on the project.
+
+For example, to publish the project `spring-kafka`,
+you need to execute the following command in project root:
+
+```
+gradle :spring-kafka:publish
+``` 
+
+The repository will not allow you to publish the same version twice.
+You need to change version of the artifact every time you want to publish.
+
+You can change version in `build.gradle` file of the sub-project.
+
+```
+build.gradle > publishing > publications > mavenJava > version
+```
+
+Please change the version wisely.
