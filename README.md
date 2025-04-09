@@ -13,6 +13,7 @@ Try to use new versions.
 
 ### Important Notes
 
+- Library support legacy OS threads and also virtual threads!!!! (4.x.x)
 - Support from JDK23 and 4.X.X version
 - Support from JDK17 and JDK17+
 - Support Spring Boot 3.X.X version
