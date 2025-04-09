@@ -330,7 +330,9 @@ final Properties properties = new Properties();
     }
 ```
 
-Virtual Thread based Consumer (**Support all of consumer types topic based, partition key based, ordered and unordered message processing**)
+### Virtual Thread based Consumer
+
+**Support all of consumer types topic based, bulk, partition key based, ordered and unordered message processing**
 
 ```java
 @Bean
