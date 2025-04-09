@@ -9,6 +9,46 @@ Compatability Matrix
 | v2.4.x  | JDK17 | 3.1.5   | 1.1.0 >=     | 1.1.0 >=     |
 | v2.3.x  | JDK11 | 2.7.12+ | 3.0.2 >=     | 3.0.0 >=     |
 
+## With Gradle
+
+JDK 23 Support
+
+```groovy
+implementation 'com.inomera.telco.commons:spring-kafka:4.0.0'
+implementation 'com.inomera.telco.commons:kafka-json:4.0.0'
+implementation 'com.inomera.telco.commons:kafka-kryo:4.0.0'
+implementation 'com.inomera.telco.commons:kafka-protobuf:4.0.0'
+implementation 'com.inomera.telco.commons:kafka-smile:4.0.0'
+```
+
+JDK 17 Support
+
+```groovy
+implementation 'com.inomera.telco.commons:spring-kafka:3.0.7'
+implementation 'com.inomera.telco.commons:kafka-json:3.0.7'
+implementation 'com.inomera.telco.commons:kafka-kryo:3.0.7'
+implementation 'com.inomera.telco.commons:kafka-protobuf:3.0.7'
+implementation 'com.inomera.telco.commons:kafka-smile:3.0.7'
+```
+
+```groovy
+implementation 'com.inomera.telco.commons:spring-kafka:2.4.0'
+implementation 'com.inomera.telco.commons:kafka-json:2.4.0'
+implementation 'com.inomera.telco.commons:kafka-kryo:2.4.0'
+implementation 'com.inomera.telco.commons:kafka-protobuf:2.4.0'
+implementation 'com.inomera.telco.commons:kafka-smile:2.4.0'
+```
+
+JDK 8 & 11 Support
+
+```groovy
+implementation 'com.inomera.telco.commons:spring-kafka:2.3.8'
+implementation 'com.inomera.telco.commons:kafka-json:2.3.8'
+implementation 'com.inomera.telco.commons:kafka-kryo:2.3.8'
+implementation 'com.inomera.telco.commons:kafka-protobuf:2.3.8'
+implementation 'com.inomera.telco.commons:kafka-smile:2.3.8'
+```
+
 Try to use new versions.
 
 ### Important Notes
