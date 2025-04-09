@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+
+package todo;
+
+import "common/ResponseStatusProto.proto";
+
+message TodoInfoProto {
+  int64 id = 1;
+  string name = 2;
+  string task = 3;
+  int64 taskId = 4;
+}
+
+message TodoResponseProto {
+  common.ResponseStatusProto status = 1;
+  string txKey = 2;
+  todo.TodoInfoProto data = 3;
+}
+
+message TodoListResponseProto {
+  common.ResponseStatusProto status = 1;
+  string txKey = 2;
+  repeated todo.TodoResponseProto data = 3;
+}

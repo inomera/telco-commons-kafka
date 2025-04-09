@@ -7,7 +7,9 @@ import org.springframework.core.Ordered;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-
+/**
+ * @author Turgay Can
+ */
 public class BulkSmartKafkaMessageConsumer implements KafkaMessageConsumer {
     private final BulkConsumerPoller consumerPoller;
     private final BulkConsumerInvoker consumerInvoker;

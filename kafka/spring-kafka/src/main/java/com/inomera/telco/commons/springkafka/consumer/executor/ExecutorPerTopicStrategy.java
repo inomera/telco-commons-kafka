@@ -1,5 +1,6 @@
 package com.inomera.telco.commons.springkafka.consumer.executor;
 
+import com.inomera.telco.commons.springkafka.consumer.executor.virtual.PerTopicVirtualExecutorStrategy;
 import com.inomera.telco.commons.springkafka.util.ThreadPoolExecutorUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
@@ -10,7 +11,19 @@ import java.util.concurrent.*;
 import java.util.function.Supplier;
 
 /**
- * @author Serdar Kuzucu
+ * Manages a pool of {@link ThreadPoolExecutor} instances, where each executor is associated with a specific Kafka topic.
+ * This strategy ensures that tasks related to a particular topic are handled by a dedicated executor, isolating their execution.
+ * <p>There are two main use cases for this strategy:
+ * <ul>
+ *     <li><b>IO-bound tasks:</b> Use {@link PerTopicVirtualExecutorStrategy} for tasks
+ *         involving IO operations such as database queries, API calls, or messaging. This leverages virtual threads.</li>
+ *     <li><b>CPU-bound tasks:</b> Use this class for processor-intensive operations,
+ *         such as multi-threaded computations, leveraging OS threads.</li>
+ * </ul>
+ * This class implements the {@link ExecutorStrategy} interface and provides methods to retrieve,
+ * start, stop, and reconfigure the executors used in processing Kafka consumer records.
+ *  @author Serdar Kuzucu
+ *  @author Turgay Can
  */
 public class ExecutorPerTopicStrategy implements ExecutorStrategy {
     private static final Logger LOG = LoggerFactory.getLogger(ExecutorPerTopicStrategy.class);
@@ -63,9 +76,9 @@ public class ExecutorPerTopicStrategy implements ExecutorStrategy {
         executor.setCorePoolSize(coreThreadCount);
         executor.setMaximumPoolSize(maxThreadCount);
         executor.setKeepAliveTime(keepAliveTime, keepAliveTimeUnit);
-        final int prestartedCoreThreads = executor.prestartAllCoreThreads();
+        final int preStartedCoreThreads = executor.prestartAllCoreThreads();
         LOG.info("reconfigure::executorName={}, coreThreadCount={}, maxThreadCount={}, keepAliveTime={}, keepAliveTimeUnit={}, startedNewThreads={}",
-                executorName, coreThreadCount, maxThreadCount, keepAliveTime, keepAliveTimeUnit, prestartedCoreThreads);
+                executorName, coreThreadCount, maxThreadCount, keepAliveTime, keepAliveTimeUnit, preStartedCoreThreads);
     }
 
     private void createExecutorIfNotExist(String executorName) {

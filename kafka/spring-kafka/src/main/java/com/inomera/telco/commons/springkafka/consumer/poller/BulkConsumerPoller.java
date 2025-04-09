@@ -2,14 +2,13 @@ package com.inomera.telco.commons.springkafka.consumer.poller;
 
 import com.inomera.telco.commons.lang.Assert;
 import com.inomera.telco.commons.lang.thread.FutureUtils;
-import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
+import com.inomera.telco.commons.lang.thread.IncrementalNamingVirtualThreadFactory;
 import com.inomera.telco.commons.lang.thread.ThreadUtils;
 import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerProperties;
 import com.inomera.telco.commons.springkafka.consumer.invoker.BulkInvokerResult;
 import com.inomera.telco.commons.springkafka.consumer.retry.BulkRecordRetryer;
 import com.inomera.telco.commons.springkafka.consumer.retry.DefaultBulkRecordRetryer;
 import com.inomera.telco.commons.springkafka.util.InterruptUtils;
-import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
@@ -24,7 +23,9 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-
+/**
+ * @author Turgay Can
+ */
 public class BulkConsumerPoller extends DefaultConsumerPoller {
     private static final Logger LOG = LoggerFactory.getLogger(BulkConsumerPoller.class);
 
@@ -57,7 +58,7 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
             final Collection<TopicPartition> toBePause = Collections.synchronizedSet(new HashSet<>());
             final Collection<TopicPartition> toBeResume = Collections.synchronizedSet(new HashSet<>());
             TopicPartition tp;
-            int pollWaitMs = 3000;
+            int pollWaitMs = 30;
             pollLoop:
             while (running.get()) {
                 final ConsumerRecords<String, ?> records = consumer.poll(Duration.of(pollWaitMs, ChronoUnit.MILLIS));
@@ -77,6 +78,7 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
                             tp = new TopicPartition(rec.topic(), rec.partition());
                             LOG.trace("tp [{}].", tp);
                             final List<? extends ConsumerRecord<String, ?>> tpRecords = records.records(tp);
+                            LOG.trace("Polling partition {} for topic {}. size : {} ", tp, rec.topic(), tpRecords.size());
                             final Set<ConsumerRecord<String, ?>> consumerRecords = tpRecordsMap.getOrDefault(tp, new LinkedHashSet<>());
                             consumerRecords.addAll(tpRecords);
                             tpRecordsMap.put(tp, consumerRecords);
@@ -218,10 +220,9 @@ public class BulkConsumerPoller extends DefaultConsumerPoller {
         closeConsumerSilently();
         this.bulkRecordRetryer = new DefaultBulkRecordRetryer();
         this.consumer = new KafkaConsumer<>(buildConsumerProperties(), new StringDeserializer(), getValueDeserializer());
-        final ThreadFactory threadFactory = this.consumerThreadFactory == null ? new IncrementalNamingThreadFactory(getKafkaConsumerProperties().getGroupId()) : this.consumerThreadFactory;
-        int consumerPollerThreadCount = NumberUtils.toInt(getKafkaConsumerProperties().getKafkaConsumerProperties().getProperty("poller.thread.count"), 1);
-        int consumerPollerThreadAliveTimeMs = NumberUtils.toInt(getKafkaConsumerProperties().getKafkaConsumerProperties().getProperty("poller.thread.keep-alive-time"), 0);
-        this.executorService = new ThreadPoolExecutor(0, consumerPollerThreadCount, consumerPollerThreadAliveTimeMs, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), threadFactory);
+        // consumer thread is not thread safe and not to support multi threading. It has a CPU bounded context!! Do not change the OS based thread factory
+        final ThreadFactory threadFactory = this.consumerThreadFactory == null ? new IncrementalNamingVirtualThreadFactory(getKafkaConsumerProperties().getGroupId()) : this.consumerThreadFactory;
+        this.executorService = new ThreadPoolExecutor(0, 1, 0, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), threadFactory);
         executorService.submit(this);
         running.set(true);
     }

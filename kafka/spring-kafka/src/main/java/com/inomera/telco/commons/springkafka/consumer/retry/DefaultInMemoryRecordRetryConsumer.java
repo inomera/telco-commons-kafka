@@ -12,14 +12,7 @@ import org.springframework.context.SmartLifecycle;
 
 import java.util.Date;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -36,8 +29,6 @@ public class DefaultInMemoryRecordRetryConsumer implements SmartLifecycle, InMem
     private final Map<String, AtomicInteger> retryMap = new ConcurrentHashMap<>(10);
 
     private final ConsumerRecordHandler consumerRecordHandler;
-
-    private ExecutorService executorService;
 
     public DefaultInMemoryRecordRetryConsumer(ConsumerRecordHandler consumerRecordHandler) {
         this.consumerRecordHandler = consumerRecordHandler;
@@ -86,16 +77,21 @@ public class DefaultInMemoryRecordRetryConsumer implements SmartLifecycle, InMem
             if (invokerResult.getKafkaListener() == null) {
                 return;
             }
-            retryQueue.offer(retryContext);
+            boolean offered = retryQueue.offer(retryContext);
+            LOG.trace("offered : {} retryContext : {}", offered, retryContext);
         } catch (Exception e) {
+            LOG.error("Exception occurred when offering retryContext : {}", retryContext, e);
             //swallowed exception
         }
     }
 
     @Override
     public void start() {
-        final IncrementalNamingThreadFactory threadFactory = new IncrementalNamingThreadFactory(RETRY_THREAD_NAME_FORMAT);
-        this.executorService = new ThreadPoolExecutor(0, 1, 0, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), threadFactory);
+        //DO NOT use virtual thread for CPU bounded process
+        final ThreadFactory threadFactory = new IncrementalNamingThreadFactory(RETRY_THREAD_NAME_FORMAT);
+        //NO SONAR
+        //DO NOT use try with resources! thread state is managed by bean lifecycle
+        ExecutorService executorService = new ThreadPoolExecutor(0, 1, 0, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), threadFactory);
         executorService.submit(this);
         running.set(true);
     }

@@ -3,7 +3,7 @@ package com.inomera.telco.commons.example.springkafka;
 import com.inomera.telco.commons.example.springkafka.msg.AbstractMessage;
 import com.inomera.telco.commons.example.springkafka.msg.Message;
 import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedConsumerMessage;
-import com.inomera.telco.commons.example.springkafka.util.ThreadUtils;
+import com.inomera.telco.commons.lang.thread.ThreadUtils;
 import com.inomera.telco.commons.springkafka.annotation.KafkaListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

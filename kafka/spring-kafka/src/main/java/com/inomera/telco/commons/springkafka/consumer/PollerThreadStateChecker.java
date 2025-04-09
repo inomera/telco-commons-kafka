@@ -14,6 +14,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * @author Serdar Kuzucu
+ * @author Turgay Can
+ */
 public class PollerThreadStateChecker implements ThreadStateChecker {
 
     private static final Logger LOG = LoggerFactory.getLogger(PollerThreadStateChecker.class);

@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package messaging;
+
+option java_multiple_files = true;
+
+message PartitionMessage {
+  string partition_key = 1;
+  string log_track_key = 2;
+}
+
+
+message OrderMessage {
+  PartitionMessage partition = 1;
+  string order_id = 2;
+  string customer_name = 3;
+}
+
+
+message PaymentMessage {
+  PartitionMessage partition = 1;
+  string payment_id = 2;
+  double amount = 3;
+}

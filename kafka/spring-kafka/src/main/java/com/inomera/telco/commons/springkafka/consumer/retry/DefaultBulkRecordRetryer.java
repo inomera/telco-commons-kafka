@@ -40,7 +40,8 @@ public class DefaultBulkRecordRetryer implements BulkRecordRetryer {
             retryContext.setBackoffTime(kafkaListener.retryBackoffTime());
             retryContext.setMaxCount(kafkaListener.retryCount());
             retryContext.setRetry(result);
-            bulkRetryQueue.offer(retryContext);
+            boolean offered = bulkRetryQueue.offer(retryContext);
+            LOG.debug("offered : {} for retry -> {}", offered, retryContext);
         }
     }
 }

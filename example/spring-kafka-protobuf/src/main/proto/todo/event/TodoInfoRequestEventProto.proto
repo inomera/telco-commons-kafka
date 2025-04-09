@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+package todo.event;
+
+message TodoInfoRequestEventProto {
+  string txKey = 1;
+  string logTrackKey = 2;
+  string info = 3;
+}

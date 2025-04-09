@@ -16,20 +16,20 @@ public class BulkSimpleConsumerInvoker implements BulkConsumerInvoker {
 
     @Override
     public void start() {
-	executorStrategy.start();
+        executorStrategy.start();
     }
 
     @Override
     public void stop() {
-	executorStrategy.stop();
+        executorStrategy.stop();
     }
 
     @Override
     public Future<BulkInvokerResult> invoke(Set<ConsumerRecord<String, ?>> records) {
-	final FutureTask<BulkInvokerResult> futureTask = methodInvoker.addRecords(records);
-	final ConsumerRecord<String, ?> firstRecord = records.iterator().next();
-	final ThreadPoolExecutor executor = executorStrategy.get(firstRecord);
-	executor.submit(futureTask);
-	return futureTask;
+        final FutureTask<BulkInvokerResult> futureTask = methodInvoker.addRecords(records);
+        final ConsumerRecord<String, ?> firstRecord = records.iterator().next();
+        final ThreadPoolExecutor executor = executorStrategy.get(firstRecord);
+        executor.submit(futureTask);
+        return futureTask;
     }
 }

@@ -134,7 +134,8 @@ public class DefaultKafkaProducerFactory<V> implements ProducerFactory<V>, Dispo
             }
             throw new KafkaException("initTransactions() failed", initTransactionException);
         }
-        return new CloseSafeProducer<>(newProducer, remover, prefix, suffix, this.physicalCloseTimeout,
+        ProducerConfig producerConfig = new ProducerConfig(this.properties);
+        return new CloseSafeProducer<>(newProducer, remover, prefix, suffix, producerConfig, this.physicalCloseTimeout,
                 this.epoch.get());
     }
 

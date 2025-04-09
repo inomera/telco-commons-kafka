@@ -1,6 +1,6 @@
 package com.inomera.telco.commons.kafkaprotobuf;
 
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.Parser;
 
 import java.lang.reflect.InvocationTargetException;
@@ -10,11 +10,11 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class ImmutableClassIdRegistry implements ClassIdRegistry {
-    private final Map<Class<? extends GeneratedMessageV3>, Integer> classIdMapping;
-    private final Map<Integer, Class<? extends GeneratedMessageV3>> idClassMapping;
-    private final Map<Integer, Parser<? extends GeneratedMessageV3>> idParserMapping;
+    private final Map<Class<? extends GeneratedMessage>, Integer> classIdMapping;
+    private final Map<Integer, Class<? extends GeneratedMessage>> idClassMapping;
+    private final Map<Integer, Parser<? extends GeneratedMessage>> idParserMapping;
 
-    public ImmutableClassIdRegistry(Map<Class<? extends GeneratedMessageV3>, Integer> classIdMapping) {
+    public ImmutableClassIdRegistry(Map<Class<? extends GeneratedMessage>, Integer> classIdMapping) {
         this.classIdMapping = new HashMap<>(classIdMapping);
         this.idClassMapping = classIdMapping.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
@@ -23,23 +23,23 @@ public class ImmutableClassIdRegistry implements ClassIdRegistry {
     }
 
     @Override
-    public Integer getId(Class<? extends GeneratedMessageV3> classInstance) {
+    public Integer getId(Class<? extends GeneratedMessage> classInstance) {
         return classIdMapping.get(classInstance);
     }
 
     @Override
-    public Class<? extends GeneratedMessageV3> getClass(Integer classId) {
+    public Class<? extends GeneratedMessage> getClass(Integer classId) {
         return idClassMapping.get(classId);
     }
 
     @Override
-    public Parser<? extends GeneratedMessageV3> getParser(Integer classId) {
+    public Parser<? extends GeneratedMessage> getParser(Integer classId) {
         return idParserMapping.get(classId);
     }
 
-    private static Parser<? extends GeneratedMessageV3> getParser(Class<? extends GeneratedMessageV3> protoClass) {
+    private static Parser<? extends GeneratedMessage> getParser(Class<? extends GeneratedMessage> protoClass) {
         try {
-            final GeneratedMessageV3 defaultInstance = getDefaultInstance(protoClass);
+            final GeneratedMessage defaultInstance = getDefaultInstance(protoClass);
             return defaultInstance.getParserForType();
         } catch (NoSuchMethodException e) {
             throw new IllegalArgumentException("NoSuchMethodException: Class " + protoClass.getName()
@@ -53,9 +53,9 @@ public class ImmutableClassIdRegistry implements ClassIdRegistry {
         }
     }
 
-    private static GeneratedMessageV3 getDefaultInstance(Class<? extends GeneratedMessageV3> protoClass)
+    private static GeneratedMessage getDefaultInstance(Class<? extends GeneratedMessage> protoClass)
             throws NoSuchMethodException, IllegalAccessException, InvocationTargetException {
         final Method methodGetDefaultInstance = protoClass.getMethod("getDefaultInstance");
-        return (GeneratedMessageV3) methodGetDefaultInstance.invoke(null);
+        return (GeneratedMessage) methodGetDefaultInstance.invoke(null);
     }
 }

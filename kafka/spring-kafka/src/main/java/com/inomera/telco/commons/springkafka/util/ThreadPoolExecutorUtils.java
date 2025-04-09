@@ -1,5 +1,7 @@
 package com.inomera.telco.commons.springkafka.util;
 
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import org.slf4j.Logger;
 
 import java.util.concurrent.ThreadPoolExecutor;
@@ -7,8 +9,10 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * @author Serdar Kuzucu
+ * @author Turgay Can
  */
-public class ThreadPoolExecutorUtils {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public final class ThreadPoolExecutorUtils {
 
     public static void closeGracefully(ThreadPoolExecutor ex, Logger log, String exName) {
         if (ex != null) {

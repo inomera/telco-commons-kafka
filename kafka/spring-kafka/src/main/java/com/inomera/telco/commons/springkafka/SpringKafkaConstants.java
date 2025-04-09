@@ -10,5 +10,5 @@ import lombok.NoArgsConstructor;
 public final class SpringKafkaConstants {
     public static final String CONSUMER_POLLER_THREAD_NAME_FORMAT = "consumer-poller-%s-";
     public static final String INVOKER_THREAD_NAME_FORMAT = "kafka-method-invoker-%s-";
-    public static final String RETRY_THREAD_NAME_FORMAT = "kafka-inmemory-retryer";
+    public static final String RETRY_THREAD_NAME_FORMAT = "kafka-memory-retryer";
 }

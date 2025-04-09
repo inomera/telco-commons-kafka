@@ -19,9 +19,7 @@ import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 
-/**
- * @author Ramazan Karakaya
- */
+
 public class KafkaMessagePublisher<V> {
     private static final String TRANSACTIONAL_PRODUCERS_ARE_NOT_SUPPORTED = "Transactional producers are not supported";
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaMessagePublisher.class);
