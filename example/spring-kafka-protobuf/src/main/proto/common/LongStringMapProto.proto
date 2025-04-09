@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+package common;
+
+message LongStringMapProto {
+  map<int64, string> elements = 1;
+}

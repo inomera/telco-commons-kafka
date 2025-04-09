@@ -4,11 +4,11 @@ package com.inomera.telco.commons.kafkaprotobuf.protomodel;
  * Protobuf type {@code com.inomera.telco.commons.kafkaprotobuf.protomodel.AuthenticationInfoProto}
  */
 // @@protoc_insertion_point(message_implements:com.inomera.telco.commons.kafkaprotobuf.protomodel.AuthenticationInfoProto)
-public final class AuthenticationInfoProto extends com.google.protobuf.GeneratedMessageV3 implements com.inomera.telco.commons.kafkaprotobuf.protomodel.AuthenticationInfoProtoOrBuilder {
+public final class AuthenticationInfoProto extends com.google.protobuf.GeneratedMessage implements com.inomera.telco.commons.kafkaprotobuf.protomodel.AuthenticationInfoProtoOrBuilder {
     private static final long serialVersionUID = 0L;
 
     // Use AuthenticationInfoProto.newBuilder() to construct.
-    private AuthenticationInfoProto(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+    private AuthenticationInfoProto(com.google.protobuf.GeneratedMessage.Builder<?> builder) {
         super(builder);
     }
 
@@ -133,7 +133,6 @@ public final class AuthenticationInfoProto extends com.google.protobuf.Generated
             throw new com.google.protobuf.InvalidProtocolBufferException(e).setUnfinishedMessage(this);
         } finally {
             this.unknownFields = unknownFields.build();
-            makeExtensionsImmutable();
         }
     }
 
@@ -566,19 +565,19 @@ public final class AuthenticationInfoProto extends com.google.protobuf.Generated
             output.writeBool(2, fromAvea_);
         }
         if (!getMsisdnBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 3, msisdn_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 3, msisdn_);
         }
         if (!getSsoUniqueIdBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 4, ssoUniqueId_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 4, ssoUniqueId_);
         }
         if (!getSsoUsernameBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 5, ssoUsername_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 5, ssoUsername_);
         }
         if (!getMtsCustomerIdBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 6, mtsCustomerId_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 6, mtsCustomerId_);
         }
         if (!getAdslNoBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 7, adslNo_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 7, adslNo_);
         }
         if (fromSSO_ != false) {
             output.writeBool(8, fromSSO_);
@@ -587,19 +586,19 @@ public final class AuthenticationInfoProto extends com.google.protobuf.Generated
             output.writeBool(9, fromSSOMsisdn_);
         }
         if (!getUserTypeBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 10, userType_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 10, userType_);
         }
         if (!getTokenBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 11, token_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 11, token_);
         }
         if (!getFirstNameBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 12, firstName_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 12, firstName_);
         }
         if (!getLastNameBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 13, lastName_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 13, lastName_);
         }
         if (!getServiceMessageBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 14, serviceMessage_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 14, serviceMessage_);
         }
         if (premium_ != false) {
             output.writeBool(15, premium_);
@@ -624,19 +623,19 @@ public final class AuthenticationInfoProto extends com.google.protobuf.Generated
             size += com.google.protobuf.CodedOutputStream.computeBoolSize(2, fromAvea_);
         }
         if (!getMsisdnBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(3, msisdn_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(3, msisdn_);
         }
         if (!getSsoUniqueIdBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(4, ssoUniqueId_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(4, ssoUniqueId_);
         }
         if (!getSsoUsernameBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(5, ssoUsername_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(5, ssoUsername_);
         }
         if (!getMtsCustomerIdBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(6, mtsCustomerId_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(6, mtsCustomerId_);
         }
         if (!getAdslNoBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(7, adslNo_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(7, adslNo_);
         }
         if (fromSSO_ != false) {
             size += com.google.protobuf.CodedOutputStream.computeBoolSize(8, fromSSO_);
@@ -645,19 +644,19 @@ public final class AuthenticationInfoProto extends com.google.protobuf.Generated
             size += com.google.protobuf.CodedOutputStream.computeBoolSize(9, fromSSOMsisdn_);
         }
         if (!getUserTypeBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(10, userType_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(10, userType_);
         }
         if (!getTokenBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(11, token_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(11, token_);
         }
         if (!getFirstNameBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(12, firstName_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(12, firstName_);
         }
         if (!getLastNameBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(13, lastName_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(13, lastName_);
         }
         if (!getServiceMessageBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(14, serviceMessage_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(14, serviceMessage_);
         }
         if (premium_ != false) {
             size += com.google.protobuf.CodedOutputStream.computeBoolSize(15, premium_);
@@ -802,27 +801,27 @@ public final class AuthenticationInfoProto extends com.google.protobuf.Generated
     }
 
     public static AuthenticationInfoProto parseFrom(java.io.InputStream input) throws java.io.IOException {
-        return com.google.protobuf.GeneratedMessageV3.parseWithIOException(AuthenticationInfoProto.PARSER, input);
+        return com.google.protobuf.GeneratedMessage.parseWithIOException(AuthenticationInfoProto.PARSER, input);
     }
 
     public static AuthenticationInfoProto parseFrom(java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry) throws java.io.IOException {
-        return com.google.protobuf.GeneratedMessageV3.parseWithIOException(AuthenticationInfoProto.PARSER, input, extensionRegistry);
+        return com.google.protobuf.GeneratedMessage.parseWithIOException(AuthenticationInfoProto.PARSER, input, extensionRegistry);
     }
 
     public static AuthenticationInfoProto parseDelimitedFrom(java.io.InputStream input) throws java.io.IOException {
-        return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(AuthenticationInfoProto.PARSER, input);
+        return com.google.protobuf.GeneratedMessage.parseDelimitedWithIOException(AuthenticationInfoProto.PARSER, input);
     }
 
     public static AuthenticationInfoProto parseDelimitedFrom(java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry) throws java.io.IOException {
-        return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(AuthenticationInfoProto.PARSER, input, extensionRegistry);
+        return com.google.protobuf.GeneratedMessage.parseDelimitedWithIOException(AuthenticationInfoProto.PARSER, input, extensionRegistry);
     }
 
     public static AuthenticationInfoProto parseFrom(com.google.protobuf.CodedInputStream input) throws java.io.IOException {
-        return com.google.protobuf.GeneratedMessageV3.parseWithIOException(AuthenticationInfoProto.PARSER, input);
+        return com.google.protobuf.GeneratedMessage.parseWithIOException(AuthenticationInfoProto.PARSER, input);
     }
 
     public static AuthenticationInfoProto parseFrom(com.google.protobuf.CodedInputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry) throws java.io.IOException {
-        return com.google.protobuf.GeneratedMessageV3.parseWithIOException(AuthenticationInfoProto.PARSER, input, extensionRegistry);
+        return com.google.protobuf.GeneratedMessage.parseWithIOException(AuthenticationInfoProto.PARSER, input, extensionRegistry);
     }
 
     @Override
@@ -854,7 +853,7 @@ public final class AuthenticationInfoProto extends com.google.protobuf.Generated
      */
     // @@protoc_insertion_point(builder_implements:com.inomera.telco.commons.kafkaprotobuf.protomodel.AuthenticationInfoProto)
     // @@protoc_insertion_point(builder_scope:com.inomera.telco.commons.kafkaprotobuf.protomodel.AuthenticationInfoProto)
-    public static final class Builder extends com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements com.inomera.telco.commons.kafkaprotobuf.protomodel.AuthenticationInfoProtoOrBuilder {
+    public static final class Builder extends com.google.protobuf.GeneratedMessage.Builder<Builder> implements com.inomera.telco.commons.kafkaprotobuf.protomodel.AuthenticationInfoProtoOrBuilder {
         public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
             return com.inomera.telco.commons.kafkaprotobuf.protomodel.UserSessionInfoProtoOuterClass.internal_static_com_inomera_muud_domain_session_AuthenticationInfoProto_descriptor;
         }
@@ -875,7 +874,7 @@ public final class AuthenticationInfoProto extends com.google.protobuf.Generated
         }
 
         private void maybeForceBuilderInitialization() {
-            if (com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders) {
+            if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
             }
         }
 

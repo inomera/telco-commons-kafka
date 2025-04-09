@@ -12,6 +12,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -32,7 +33,7 @@ public class DynamicNamedExecutorStrategyBuilder extends AbstractExecutorStrateg
     private ThreadFactory threadFactory;
     private int queueCapacity = Integer.MAX_VALUE;
     private Function<ConsumerRecord<String, ?>, String> executorNamingFunction;
-    private Map<String, ThreadPoolExecutorCapacity> executorConfigurations = new HashMap<>();
+    private final Map<String, ThreadPoolExecutorCapacity> executorConfigurations = new HashMap<>();
 
     public DynamicNamedExecutorStrategyBuilder configureDefaultExecutor(int coreThreadCount, int maxThreadCount,
                                                                         int keepAliveTime, TimeUnit keepAliveTimeUnit) {
@@ -73,17 +74,11 @@ public class DynamicNamedExecutorStrategyBuilder extends AbstractExecutorStrateg
     }
 
     private Function<ConsumerRecord<String, ?>, String> getExecutorNamingFunction() {
-        if (executorNamingFunction == null) {
-            return ConsumerRecord::topic;
-        }
-        return executorNamingFunction;
+        return Objects.requireNonNullElseGet(executorNamingFunction, () -> ConsumerRecord::topic);
     }
 
     private ThreadFactory getThreadFactory(String groupId) {
-        if (this.threadFactory != null) {
-            return this.threadFactory;
-        }
-        return new IncrementalNamingThreadFactory(String.format(INVOKER_THREAD_NAME_FORMAT, groupId));
+        return Objects.requireNonNullElseGet(this.threadFactory, () -> new IncrementalNamingThreadFactory(String.format(INVOKER_THREAD_NAME_FORMAT, groupId)));
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.inomera.telco.commons.springkafka.configuration;
 
 import com.inomera.telco.commons.springkafka.builder.KafkaConsumerBuilder;
+import com.inomera.telco.commons.springkafka.builder.virtual.VirtualKafkaConsumerBuilder;
 import com.inomera.telco.commons.springkafka.consumer.invoker.ListenerMethodRegistry;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,5 +16,11 @@ public class KafkaBootstrapConfiguration {
     @Scope("prototype")
     public KafkaConsumerBuilder kafkaConsumerBuilder(ListenerMethodRegistry listenerMethodRegistry) {
         return KafkaConsumerBuilder.builder(listenerMethodRegistry);
+    }
+
+    @Bean
+    @Scope("prototype")
+    public VirtualKafkaConsumerBuilder virtualKafkaConsumerBuilder(ListenerMethodRegistry listenerMethodRegistry) {
+        return VirtualKafkaConsumerBuilder.builder(listenerMethodRegistry);
     }
 }

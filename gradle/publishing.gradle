@@ -2,6 +2,7 @@ apply plugin: 'maven-publish'
 
 
 tasks.register('sourceJar', Jar) {
-    classifier 'sources'
-    from sourceSets.main.allJava
+    duplicatesStrategy = 'include'
+    archiveClassifier.set("sources")
+    from sourceSets.main.allSource
 }

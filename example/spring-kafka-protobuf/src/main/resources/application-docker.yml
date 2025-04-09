@@ -1,0 +1,62 @@
+spring:
+  docker:
+    compose:
+      lifecycle-management: start_and_stop
+      start:
+        command: up
+      stop:
+        command: down
+        timeout: 10s
+      file: docker-compose.yml
+
+kafka-producers:
+  default:
+    properties: |
+      max.request.size=15728640
+      bootstrap.servers=localhost:10000,localhost:20000,localhost:30000
+      enable.idempotence=true
+      retries=2147483647
+      max.in.flight.requests.per.connection=1
+      acks=all
+      linger.ms=10
+      metadata.max.age.ms=10000
+      compression.type=lz4
+      transaction.timeout.ms=10000
+
+kafka-consumers:
+  default:
+    properties: |-
+      bootstrap.servers=localhost:10000,localhost:20000,localhost:30000
+      metadata.max.age.ms=10000
+      enable.auto.commit=false
+      auto.offset.reset=earliest
+      heartbeat.interval.ms=10000
+      request.timeout.ms=31000
+      session.timeout.ms=30000
+      max.poll.records=1000
+      reconnect.backoff.ms=5000
+      reconnect.backoff.max.ms=9223372036854775806
+    number-of-invoker-threads: 720
+    offset-commit-strategy: AT_MOST_ONCE_BULK
+    pollerThreadProperties: |-
+      poller.thread.checker.active=true
+      poller.thread.checker.initialDelaySec=5
+      poller.thread.checker.retryAsSec=30
+  retry:
+    properties: |-
+      bootstrap.servers=localhost:10000,localhost:20000,localhost:30000
+      metadata.max.age.ms=10000
+      enable.auto.commit=false
+      auto.offset.reset=earliest
+      heartbeat.interval.ms=10000
+      request.timeout.ms=31000
+      session.timeout.ms=30000
+      max.poll.records=100
+      reconnect.backoff.ms=5000
+      reconnect.backoff.max.ms=9223372036854775806
+    number-of-invoker-threads: 2
+    offset-commit-strategy: AT_LEAST_ONCE_BULK
+    pollerThreadProperties: |-
+      poller.thread.checker.active=true
+      poller.thread.checker.initialDelaySec=5
+      poller.thread.checker.retryAsSec=30

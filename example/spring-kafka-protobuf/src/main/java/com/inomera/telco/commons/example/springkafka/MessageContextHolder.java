@@ -1,8 +1,8 @@
 package com.inomera.telco.commons.example.springkafka;
 
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.GeneratedMessage;
 
 import java.util.concurrent.ConcurrentHashMap;
 
-public class MessageContextHolder extends ConcurrentHashMap<String, GeneratedMessageV3> {
+public class MessageContextHolder extends ConcurrentHashMap<String, GeneratedMessage> {
 }

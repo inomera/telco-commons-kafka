@@ -25,124 +25,126 @@ public class MethodInvoker {
     private final ListenerMethodNotFoundHandler listenerMethodNotFoundHandler;
 
     public MethodInvoker(String groupId,
-			 ListenerMethodRegistry listenerMethodRegistry,
-			 List<ListenerInvocationInterceptor> interceptors) {
-	this(groupId, listenerMethodRegistry, interceptors, new LoggingListenerMethodNotFoundHandler());
+                         ListenerMethodRegistry listenerMethodRegistry,
+                         List<ListenerInvocationInterceptor> interceptors) {
+        this(groupId, listenerMethodRegistry, interceptors, new LoggingListenerMethodNotFoundHandler());
     }
 
     public MethodInvoker(String groupId,
-			 ListenerMethodRegistry listenerMethodRegistry,
-			 List<ListenerInvocationInterceptor> interceptors,
-			 ListenerMethodNotFoundHandler listenerMethodNotFoundHandler) {
-	this.groupId = groupId;
-	this.listenerMethodRegistry = listenerMethodRegistry;
-	this.interceptors = interceptors;
-	this.listenerMethodNotFoundHandler = listenerMethodNotFoundHandler;
+                         ListenerMethodRegistry listenerMethodRegistry,
+                         List<ListenerInvocationInterceptor> interceptors,
+                         ListenerMethodNotFoundHandler listenerMethodNotFoundHandler) {
+        this.groupId = groupId;
+        this.listenerMethodRegistry = listenerMethodRegistry;
+        this.interceptors = interceptors;
+        this.listenerMethodNotFoundHandler = listenerMethodNotFoundHandler;
     }
 
     public FutureTask<InvokerResult> addRecord(final ConsumerRecord<String, ?> record) {
-	final InvokerResult invokerResult = new InvokerResult(record);
-	return new FutureTask<>(() -> {
-	    try {
-		final Object msg = record.value();
-		if (msg == null) {
-		    LOG.info("Null received from topic: {}", record.topic());
-		    return;
-		}
+        final InvokerResult invokerResult = new InvokerResult(record);
+        return new FutureTask<>(() -> {
+            try {
+                final Object msg = record.value();
+                if (msg == null) {
+                    LOG.info("Null received from topic: {}", record.topic());
+                    return;
+                }
 
-		final long invokerMethodCount = listenerMethodRegistry
-			.getListenerMethods(groupId, record.topic(), msg.getClass())
-			.peek(listenerMethod -> {
-			    final KafkaListener kafkaListener = invokeListenerMethod(listenerMethod, msg, record);
-			    invokerResult.setKafkaListener(kafkaListener);
-			})
-			.count();
+                final long invokerMethodCount = listenerMethodRegistry
+                        .getListenerMethods(groupId, record.topic(), msg.getClass())
+                        .peek(listenerMethod -> { //DO NOT remove suggestion, invoke method inner method
+                            final KafkaListener kafkaListener = invokeListenerMethod(listenerMethod, msg, record);
+                            invokerResult.setKafkaListener(kafkaListener);
+                        })
+                        .count();
 
-		LOG.debug("Invoked {} listener methods", invokerMethodCount);
-		if (invokerMethodCount == 0L) {
-		    invokeListenerMethodNotFoundHandler(record);
-		}
-	    } catch (Exception e) {
-		LOG.error("Error processing kafka message [{}].", record.value(), e);
-	    }
-	}, invokerResult);
+                LOG.trace("Invoked {} listener methods", invokerMethodCount);
+                if (invokerMethodCount == 0L) {
+                    invokeListenerMethodNotFoundHandler(record);
+                }
+            } catch (Exception e) {
+                LOG.error("Error processing kafka message [{}].", record.value(), e);
+            }
+        }, invokerResult);
     }
 
     public FutureTask<BulkInvokerResult> addRecords(final Set<ConsumerRecord<String, ?>> records) {
-	final ConsumerRecord<String, ?> firstRecord = records.iterator().next();
-	final BulkInvokerResult invokerResult = new BulkInvokerResult(records);
-	return new FutureTask<>(() -> {
-	    try {
-		final Set<Object> messages = records.stream().map(r -> r.value()).collect(Collectors.toSet());
-		if (messages.isEmpty()) {
-		    LOG.info("messages list is received as empty from topic: {}", firstRecord.topic());
-		    return;
-		}
+        final ConsumerRecord<String, ?> firstRecord = records.iterator().next();
+        final BulkInvokerResult invokerResult = new BulkInvokerResult(records);
+        return new FutureTask<>(() -> {
+            try {
+                final Set<Object> messages = records.stream()
+                        .map(ConsumerRecord::value)
+                        .collect(Collectors.toSet());
+                if (messages.isEmpty()) {
+                    LOG.info("messages list is received as empty from topic: {}", firstRecord.topic());
+                    return;
+                }
 
-		final long invokerMethodCount = listenerMethodRegistry
-			.getListenerMethods(groupId, firstRecord.topic(), Set.class)
-			.peek(listenerMethod -> {
-			    final KafkaListener kafkaListener = invokeListenerMethods(listenerMethod, messages, firstRecord);
-			    invokerResult.setKafkaListener(kafkaListener);
-			})
-			.count();
+                final long invokerMethodCount = listenerMethodRegistry
+                        .getListenerMethods(groupId, firstRecord.topic(), Set.class)
+                        .peek(listenerMethod -> { //DO NOT remove suggestion, invoke method inner method
+                            final KafkaListener kafkaListener = invokeListenerMethods(listenerMethod, messages, firstRecord);
+                            invokerResult.setKafkaListener(kafkaListener);
+                        })
+                        .count();
 
-		LOG.debug("Invoked {} listener methods", invokerMethodCount);
-		if (invokerMethodCount == 0L) {
-		    invokeListenerMethodNotFoundHandler(firstRecord);
-		}
-	    } catch (Exception e) {
-		LOG.error("Error processing bulk kafka message [{}].", firstRecord.value(), e);
-	    }
-	}, invokerResult);
+                LOG.trace("Invoked {} listener methods", invokerMethodCount);
+                if (invokerMethodCount == 0L) {
+                    invokeListenerMethodNotFoundHandler(firstRecord);
+                }
+            } catch (Exception e) {
+                LOG.error("Error processing bulk kafka message [{}].", firstRecord.value(), e);
+            }
+        }, invokerResult);
     }
 
     private KafkaListener invokeListenerMethod(ListenerMethod listenerMethod, Object message, ConsumerRecord<String, ?> record) {
-	try {
-	    invokeBeforeInterceptors(message, record.headers());
-	    return listenerMethod.invoke(message, record.topic());
-	} catch (Exception e) {
-	    LOG.error("Error processing kafka message [{}]", message, e);
-	    return null;
-	} finally {
-	    invokeAfterInterceptors(message, record.headers());
-	}
+        try {
+            invokeBeforeInterceptors(message, record.headers());
+            return listenerMethod.invoke(message, record.topic());
+        } catch (Exception e) {
+            LOG.error("Error processing kafka message [{}]", message, e);
+            return null;
+        } finally {
+            invokeAfterInterceptors(message, record.headers());
+        }
     }
 
     private KafkaListener invokeListenerMethods(ListenerMethod listenerMethod, Set<Object> messages, ConsumerRecord<String, ?> record) {
-	try {
-	    invokeBeforeInterceptors(messages, record.headers());
-	    return listenerMethod.invoke(messages, record.topic());
-	} catch (Exception e) {
-	    LOG.error("Error processing kafka message [{}]", messages, e);
-	    return null;
-	} finally {
-	    invokeAfterInterceptors(messages, record.headers());
-	}
+        try {
+            invokeBeforeInterceptors(messages, record.headers());
+            return listenerMethod.invoke(messages, record.topic());
+        } catch (Exception e) {
+            LOG.error("Error processing kafka message [{}]", messages, e);
+            return null;
+        } finally {
+            invokeAfterInterceptors(messages, record.headers());
+        }
     }
 
     private void invokeBeforeInterceptors(Object message, Headers headers) {
-	interceptors.forEach(interceptor -> interceptor.beforeInvocation(message, headers));
+        interceptors.forEach(interceptor -> interceptor.beforeInvocation(message, headers));
     }
 
     private void invokeBeforeInterceptors(Set<Object> messages, Headers headers) {
-	interceptors.forEach(interceptor -> interceptor.beforeInvocation(messages, headers));
+        interceptors.forEach(interceptor -> interceptor.beforeInvocation(messages, headers));
     }
 
     private void invokeAfterInterceptors(Object message, Headers headers) {
-	interceptors.forEach(interceptor -> interceptor.afterInvocation(message, headers));
+        interceptors.forEach(interceptor -> interceptor.afterInvocation(message, headers));
     }
 
     private void invokeAfterInterceptors(Set<Object> messages, Headers headers) {
-	interceptors.forEach(interceptor -> interceptor.afterInvocation(messages, headers));
+        interceptors.forEach(interceptor -> interceptor.afterInvocation(messages, headers));
     }
 
     private void invokeListenerMethodNotFoundHandler(ConsumerRecord<String, ?> record) {
-	try {
-	    listenerMethodNotFoundHandler.onListenerMethodNotFound(groupId, record);
-	} catch (Exception e) {
-	    // Swallow the exception, nothing should be thrown from here.
-	    LOG.error("Error calling listenerMethodNotFoundHandler: {}", e.getMessage(), e);
-	}
+        try {
+            listenerMethodNotFoundHandler.onListenerMethodNotFound(groupId, record);
+        } catch (Exception e) {
+            // Swallow the exception, nothing should be thrown from here.
+            LOG.error("Error calling listenerMethodNotFoundHandler: {}", e.getMessage(), e);
+        }
     }
 }

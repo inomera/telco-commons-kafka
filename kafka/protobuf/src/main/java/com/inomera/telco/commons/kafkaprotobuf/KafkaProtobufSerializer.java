@@ -1,6 +1,6 @@
 package com.inomera.telco.commons.kafkaprotobuf;
 
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.GeneratedMessage;
 import org.apache.kafka.common.serialization.Serializer;
 
 import java.io.ByteArrayOutputStream;
@@ -8,7 +8,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Map;
 
-public class KafkaProtobufSerializer implements Serializer<GeneratedMessageV3> {
+public class KafkaProtobufSerializer implements Serializer<GeneratedMessage> {
     private final ClassIdRegistry classIdRegistry;
 
     public KafkaProtobufSerializer(ClassIdRegistry classIdRegistry) {
@@ -20,7 +20,7 @@ public class KafkaProtobufSerializer implements Serializer<GeneratedMessageV3> {
     }
 
     @Override
-    public byte[] serialize(String topic, GeneratedMessageV3 data) {
+    public byte[] serialize(String topic, GeneratedMessage data) {
         final Integer id = classIdRegistry.getId(data.getClass());
         if (id == null) {
             throw new IllegalArgumentException("Class " + data.getClass().getName()

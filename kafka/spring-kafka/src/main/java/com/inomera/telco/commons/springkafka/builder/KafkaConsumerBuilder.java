@@ -23,8 +23,12 @@ import static com.inomera.telco.commons.springkafka.SpringKafkaConstants.CONSUME
 
 /**
  * @author Serdar Kuzucu
+ * @author Turgay Can
  */
 public class KafkaConsumerBuilder {
+
+    private final ConsumerInvokerBuilder consumerInvokerBuilder;
+
     private String groupId;
     private List<String> topics = new ArrayList<>();
     private Pattern topicPattern;
@@ -36,7 +40,6 @@ public class KafkaConsumerBuilder {
     private ConsumerThreadStore threadStore;
     private InMemoryBulkRecordRetryConsumer inMemoryBulkRecordRetryConsumer;
     private InMemoryRecordRetryConsumer inMemoryRecordConsumer;
-    private final ConsumerInvokerBuilder consumerInvokerBuilder;
 
     private KafkaConsumerBuilder(ListenerMethodRegistry listenerMethodRegistry) {
         Assert.notNull(listenerMethodRegistry, "listenerMethodRegistry is null");
@@ -133,18 +136,11 @@ public class KafkaConsumerBuilder {
     }
 
     private ThreadFactory getOrCreateConsumerThreadFactory() {
-        if (this.consumerThreadFactory != null) {
-            return this.consumerThreadFactory;
-        }
-
-        return new IncrementalNamingThreadFactory(String.format(CONSUMER_POLLER_THREAD_NAME_FORMAT, groupId));
+        return Objects.requireNonNullElseGet(this.consumerThreadFactory, () -> new IncrementalNamingThreadFactory(String.format(CONSUMER_POLLER_THREAD_NAME_FORMAT, groupId)));
     }
 
     private ConsumerThreadStore getOrCreateConsumerThreadStore() {
-        if (this.threadStore == null) {
-            return new NoopConsumerThreadStore();
-        }
-        return this.threadStore;
+        return Objects.requireNonNullElseGet(this.threadStore, NoopConsumerThreadStore::new);
     }
 
     private ThreadFactory getWrappedThreadFactory(ConsumerPoller consumerPoller) {

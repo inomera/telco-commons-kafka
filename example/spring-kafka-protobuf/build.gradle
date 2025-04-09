@@ -1,46 +1,41 @@
+buildscript {
+    dependencies {
+        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.9.4'
+    }
+}
 plugins {
-    id 'org.springframework.boot' version '2.7.12'
-    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id 'java'
+    id 'org.springframework.boot' version '3.4.2'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id "com.google.protobuf" version "0.9.4"
 }
 
 apply plugin: 'io.spring.dependency-management'
 apply plugin: 'org.springframework.boot'
+apply plugin: 'com.google.protobuf'
 
 ext {
-    set('springCloudVersion', "2021.0.3")
-    set('resilience4jVersion', '1.7.0')
+    set('springCloudVersion', "2024.0.0")
+    set('resilience4jVersion', '2.3.0')
 }
 
 repositories {
+    gradlePluginPortal()
     mavenLocal()
     mavenCentral()
-    maven {
-        url "https://nexus.telco.inomera.com/repository/turkcell/"
-        credentials {
-            username 'turkcell-readonly'
-            password '1d236121c8olp28a428a553615495931'
-        }
-    }
 }
 
-sourceCompatibility = JavaVersion.VERSION_17
-targetCompatibility = JavaVersion.VERSION_17
-
-configurations {
-    compileOnly {
-        extendsFrom annotationProcessor
-    }
-}
+sourceCompatibility = JavaVersion.VERSION_23
+targetCompatibility = JavaVersion.VERSION_23
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation 'com.google.protobuf:protobuf-java:3.21.7'
+    implementation 'com.google.protobuf:protobuf-java:4.29.3'
     implementation "org.apache.kafka:kafka-clients:${versions.kafka_clients}"
-    implementation "com.google.guava:guava:33.2.0-jre"
+    implementation "com.google.guava:guava:33.4.0-jre"
+    implementation 'org.apache.commons:commons-lang3:3.17.0'
 
-    //jdk 11 release proto sample models
-    implementation 'com.inomera.echo.domain:domain:1.2.10.1'
+    implementation "com.inomera.telco.commons:lang:${versions.lang}"
 
     implementation project(":spring-kafka")
     implementation project(":kafka-protobuf")
@@ -53,7 +48,7 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter-engine:${versions.jupiter}"
     testImplementation "org.mockito:mockito-core:${versions.mockito_core}"
     testImplementation "org.mockito:mockito-junit-jupiter:${versions.mockito_jupiter}"
-    testImplementation "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+    testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 dependencyManagement {
@@ -61,3 +56,31 @@ dependencyManagement {
         mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
     }
 }
+
+compileJava.dependsOn('generateProto')
+
+sourceSets {
+    main {
+        proto {
+            srcDir 'src/main/proto'
+        }
+    }
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:4.29.3"
+    }
+    generateProtoTasks {
+        all().configureEach {
+            it.builtins {
+                java {}
+            }
+        }
+    }
+    processResources {
+        duplicatesStrategy = 'include'
+    }
+}
+
+

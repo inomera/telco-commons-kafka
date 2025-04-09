@@ -89,7 +89,7 @@ public class ConsumerInvokerBuilder {
                 .orElse(new UnorderedProcessingStrategyBuilder(this))
                 .build(groupId);
 
-        final PauseAndRetryRejectionHandler rejectionHandler = new PauseAndRetryRejectionHandler(consumerPoller,
+        final RejectionHandler rejectionHandler = new PauseAndRetryRejectionHandler(consumerPoller,
                 executorStrategy);
         return new RejectionAwareConsumerInvoker(methodInvoker, executorStrategy, rejectionHandler);
     }
@@ -108,7 +108,7 @@ public class ConsumerInvokerBuilder {
                 .orElse(new UnorderedProcessingStrategyBuilder(this))
                 .build(groupId);
 
-        final PauseAndRetryRejectionHandler rejectionHandler = new PauseAndRetryRejectionHandler(consumerPoller,
+        final RejectionHandler rejectionHandler = new PauseAndRetryRejectionHandler(consumerPoller,
                 executorStrategy);
         return new BulkRejectionAwareConsumerInvoker(methodInvoker, executorStrategy, rejectionHandler);
     }

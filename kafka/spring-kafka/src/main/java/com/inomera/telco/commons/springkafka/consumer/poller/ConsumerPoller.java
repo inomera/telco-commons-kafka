@@ -4,6 +4,7 @@ import org.apache.kafka.common.TopicPartition;
 
 /**
  * @author Serdar Kuzucu
+ * @author Turgay Can
  */
 public interface ConsumerPoller {
     void start();

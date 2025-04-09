@@ -3,11 +3,11 @@ package com.inomera.telco.commons.kafkaprotobuf.protomodel;
  * Protobuf type {@code com.inomera.telco.commons.kafkaprotobuf.protomodel.UserSessionInfoProto}
  */
 // @@protoc_insertion_point(message_implements:com.inomera.telco.commons.kafkaprotobuf.protomodel.UserSessionInfoProto)
-public final class UserSessionInfoProto extends com.google.protobuf.GeneratedMessageV3 implements com.inomera.telco.commons.kafkaprotobuf.protomodel.UserSessionInfoProtoOrBuilder {
+public final class UserSessionInfoProto extends com.google.protobuf.GeneratedMessage implements com.inomera.telco.commons.kafkaprotobuf.protomodel.UserSessionInfoProtoOrBuilder {
     private static final long serialVersionUID = 0L;
 
     // Use UserSessionInfoProto.newBuilder() to construct.
-    private UserSessionInfoProto(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+    private UserSessionInfoProto(com.google.protobuf.GeneratedMessage.Builder<?> builder) {
         super(builder);
     }
 
@@ -100,7 +100,6 @@ public final class UserSessionInfoProto extends com.google.protobuf.GeneratedMes
             throw new com.google.protobuf.InvalidProtocolBufferException(e).setUnfinishedMessage(this);
         } finally {
             this.unknownFields = unknownFields.build();
-            makeExtensionsImmutable();
         }
     }
 
@@ -310,10 +309,10 @@ public final class UserSessionInfoProto extends com.google.protobuf.GeneratedMes
     @Override
     public void writeTo(com.google.protobuf.CodedOutputStream output) throws java.io.IOException {
         if (!getUserIdBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 1, userId_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 1, userId_);
         }
         if (!getSessionKeyBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 2, sessionKey_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 2, sessionKey_);
         }
         if (lastActivationTime_ != 0L) {
             output.writeInt64(3, lastActivationTime_);
@@ -325,10 +324,10 @@ public final class UserSessionInfoProto extends com.google.protobuf.GeneratedMes
             output.writeInt32(5, requestCount_);
         }
         if (!getDeviceIdBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 6, deviceId_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 6, deviceId_);
         }
         if (!getDeviceNameBytes().isEmpty()) {
-            com.google.protobuf.GeneratedMessageV3.writeString(output, 7, deviceName_);
+            com.google.protobuf.GeneratedMessage.writeString(output, 7, deviceName_);
         }
         unknownFields.writeTo(output);
     }
@@ -341,10 +340,10 @@ public final class UserSessionInfoProto extends com.google.protobuf.GeneratedMes
 
         size = 0;
         if (!getUserIdBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, userId_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(1, userId_);
         }
         if (!getSessionKeyBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, sessionKey_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(2, sessionKey_);
         }
         if (lastActivationTime_ != 0L) {
             size += com.google.protobuf.CodedOutputStream.computeInt64Size(3, lastActivationTime_);
@@ -356,10 +355,10 @@ public final class UserSessionInfoProto extends com.google.protobuf.GeneratedMes
             size += com.google.protobuf.CodedOutputStream.computeInt32Size(5, requestCount_);
         }
         if (!getDeviceIdBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(6, deviceId_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(6, deviceId_);
         }
         if (!getDeviceNameBytes().isEmpty()) {
-            size += com.google.protobuf.GeneratedMessageV3.computeStringSize(7, deviceName_);
+            size += com.google.protobuf.GeneratedMessage.computeStringSize(7, deviceName_);
         }
         size += unknownFields.getSerializedSize();
         memoizedSize = size;
@@ -460,27 +459,27 @@ public final class UserSessionInfoProto extends com.google.protobuf.GeneratedMes
     }
 
     public static UserSessionInfoProto parseFrom(java.io.InputStream input) throws java.io.IOException {
-        return com.google.protobuf.GeneratedMessageV3.parseWithIOException(UserSessionInfoProto.PARSER, input);
+        return com.google.protobuf.GeneratedMessage.parseWithIOException(UserSessionInfoProto.PARSER, input);
     }
 
     public static UserSessionInfoProto parseFrom(java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry) throws java.io.IOException {
-        return com.google.protobuf.GeneratedMessageV3.parseWithIOException(UserSessionInfoProto.PARSER, input, extensionRegistry);
+        return com.google.protobuf.GeneratedMessage.parseWithIOException(UserSessionInfoProto.PARSER, input, extensionRegistry);
     }
 
     public static UserSessionInfoProto parseDelimitedFrom(java.io.InputStream input) throws java.io.IOException {
-        return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(UserSessionInfoProto.PARSER, input);
+        return com.google.protobuf.GeneratedMessage.parseDelimitedWithIOException(UserSessionInfoProto.PARSER, input);
     }
 
     public static UserSessionInfoProto parseDelimitedFrom(java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry) throws java.io.IOException {
-        return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(UserSessionInfoProto.PARSER, input, extensionRegistry);
+        return com.google.protobuf.GeneratedMessage.parseDelimitedWithIOException(UserSessionInfoProto.PARSER, input, extensionRegistry);
     }
 
     public static UserSessionInfoProto parseFrom(com.google.protobuf.CodedInputStream input) throws java.io.IOException {
-        return com.google.protobuf.GeneratedMessageV3.parseWithIOException(UserSessionInfoProto.PARSER, input);
+        return com.google.protobuf.GeneratedMessage.parseWithIOException(UserSessionInfoProto.PARSER, input);
     }
 
     public static UserSessionInfoProto parseFrom(com.google.protobuf.CodedInputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry) throws java.io.IOException {
-        return com.google.protobuf.GeneratedMessageV3.parseWithIOException(UserSessionInfoProto.PARSER, input, extensionRegistry);
+        return com.google.protobuf.GeneratedMessage.parseWithIOException(UserSessionInfoProto.PARSER, input, extensionRegistry);
     }
 
     @Override
@@ -512,7 +511,7 @@ public final class UserSessionInfoProto extends com.google.protobuf.GeneratedMes
      */
     // @@protoc_insertion_point(builder_implements:com.inomera.telco.commons.kafkaprotobuf.protomodel.UserSessionInfoProto)
     // @@protoc_insertion_point(builder_scope:com.inomera.telco.commons.kafkaprotobuf.protomodel.UserSessionInfoProto)
-    public static final class Builder extends com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements com.inomera.telco.commons.kafkaprotobuf.protomodel.UserSessionInfoProtoOrBuilder {
+    public static final class Builder extends com.google.protobuf.GeneratedMessage.Builder<Builder> implements com.inomera.telco.commons.kafkaprotobuf.protomodel.UserSessionInfoProtoOrBuilder {
         public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
             return com.inomera.telco.commons.kafkaprotobuf.protomodel.UserSessionInfoProtoOuterClass.internal_static_com_inomera_muud_domain_session_UserSessionInfoProto_descriptor;
         }
@@ -533,7 +532,7 @@ public final class UserSessionInfoProto extends com.google.protobuf.GeneratedMes
         }
 
         private void maybeForceBuilderInitialization() {
-            if (com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders) {
+            if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
             }
         }
 

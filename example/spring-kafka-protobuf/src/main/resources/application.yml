@@ -1,6 +1,12 @@
+spring:
+  profiles:
+    active: docker
 logging:
   pattern:
     console: '%clr(%d{HH:mm:ss.SSS}){blue} %clr(%-5p) %clr([%15t]){cyan} %clr(:){red} %clr(%m){faint}%n'
+  level:
+    com:
+      inomera: DEBUG
 server:
   port: 8081
 
@@ -34,6 +40,7 @@ kafka-consumers:
       max.poll.records=100
       reconnect.backoff.ms=5000
       reconnect.backoff.max.ms=9223372036854775806
+      partition.number=6
     number-of-invoker-threads: 2
     offset-commit-strategy: AT_MOST_ONCE_BULK
     pollerThreadProperties: |-
