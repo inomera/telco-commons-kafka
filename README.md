@@ -330,7 +330,39 @@ final Properties properties = new Properties();
     }
 ```
 
+Virtual Thread based Consumer (**Support all of consumer types topic based, partition key based, ordered and unordered message processing**)
+
+```java
+@Bean
+public KafkaMessageConsumer virtualConsumer(VirtualKafkaConsumerBuilder virtualKafkaConsumerBuilder,
+					KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties,
+					KafkaProtobufDeserializer kafkaDeserializer) {
+
+Properties consumerProperties = defaultKafkaConsumerConfigurationProperties.getProperties();
+int partitionNumber = (int) consumerProperties.getOrDefault("partition.number", 6);
+return virtualKafkaConsumerBuilder.properties(consumerProperties)
+	.groupId(VIRTUAL_EVENT_LOGGER)
+	.topics(KafkaTopicUtils.getTopicNames(
+		PlayerCreateCommandProto.class,
+		OrderMessage.class,
+		PaymentMessage.class
+	))
+	.offsetCommitStrategy(defaultKafkaConsumerConfigurationProperties.getOffsetCommitStrategy())
+	.valueDeserializer(kafkaDeserializer)
+	.autoPartitionPause(true)
+	.invoker()
+	.unordered()
+	.custom(new CustomPartitionKeyAwareVirtualExecutorStrategy(partitionNumber, VIRTUAL_EVENT_LOGGER))
+	.and()
+	.threadStore(consumerThreadStore())
+	.build();
+}
+```
+
+
 ### KafkaListener
+
+Enable spring kafka configration via @EnableKafkaListeners annotation
 
 Sample usage of KafkaListener single message
 
@@ -436,6 +468,30 @@ RETRY_IN_MEMORY_TASK
 }
 ```
 
+Custom partition key handling for ordering messages (binary message format)
+
+```java
+static class CustomPartitionKeyAwareVirtualExecutorStrategy extends PartitionKeyAwareVirtualExecutorStrategy {
+
+        public CustomPartitionKeyAwareVirtualExecutorStrategy(int partitionPoolSize, String groupId) {
+            super(partitionPoolSize, new IncrementalNamingVirtualThreadFactory(String.format(INVOKER_THREAD_NAME_FORMAT, groupId)));
+        }
+
+        @Override
+        protected int getPartitionKey(ConsumerRecord<String, ?> record) {
+            if (record.value() instanceof GeneratedMessage message) {
+                PartitionMessage partition = ProtobufUtils.getField(message, "partition", PartitionMessage.class);
+                if (partition != null) {
+                    return partition.getPartitionKey().hashCode();
+                }
+                return super.getPartitionKey(record);
+            }
+            return super.getPartitionKey(record);
+        }
+
+    }
+   ```
+ 
 ## Publishing
 
 To publish a version to maven repository,
