@@ -4,7 +4,7 @@ import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedBeauti
 import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedConsumerMessage;
 import com.inomera.telco.commons.example.springkafka.msg.SomethingHappenedMessage;
 import com.inomera.telco.commons.example.springkafka.msg.UnListenedMessage;
-import com.inomera.telco.commons.example.springkafka.util.ThreadUtils;
+import com.inomera.telco.commons.lang.thread.ThreadUtils;
 import com.inomera.telco.commons.springkafka.producer.KafkaTransactionalMessagePublisher;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
