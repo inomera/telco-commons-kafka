@@ -1,3 +1,7 @@
+# Telco Commons Kafka Java Library (Spring Kafka)
+
+![Build](https://github.com/inomera/telco-commons-kafka/workflows/Build/badge.svg)
+
 # Version Compatability
 
 Compatability Matrix
@@ -8,6 +12,24 @@ Compatability Matrix
 | v3.x.x  | JDK17 | 3.1.5   | 3.0.2 >=     | 3.0.0 >=     |
 | v2.4.x  | JDK17 | 3.1.5   | 1.1.0 >=     | 1.1.0 >=     |
 | v2.3.x  | JDK11 | 2.7.12+ | 3.0.2 >=     | 3.0.0 >=     |
+
+## Subprojects
+
+| Artifact       | Version                                                                                                                                                                                                                          |
+|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| spring-kafka   | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/spring-kafka/badge.svg?version=4.0.0)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/spring-kafka)     |
+| kafka-json     | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-json/badge.svg?version=4.0.0)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-json)         |
+| kafka-kryo     | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-kryo/badge.svg?version=4.0.0)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-kryo)         |
+| kafka-protobuf | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-protobuf/badge.svg?version=4.0.0)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-protobuf) |
+| kafka-smile    | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-smile/badge.svg?version=4.0.0)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-smile)       |
+| -              | -                                                                                                                                                                                                                                |
+| spring-kafka   | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/spring-kafka/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/spring-kafka)     |
+| kafka-json     | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-json/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-json)         |
+| kafka-kryo     | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-kryo/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-kryo)         |
+| kafka-protobuf | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-protobuf/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-protobuf) |
+| kafka-smile    | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-smile/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-smile)       |
+
+
 
 ## With Gradle
 
