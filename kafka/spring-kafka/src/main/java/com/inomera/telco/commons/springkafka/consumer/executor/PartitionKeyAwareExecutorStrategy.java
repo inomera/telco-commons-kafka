@@ -20,13 +20,13 @@ import java.util.concurrent.TimeUnit;
  * preserving data consistency and minimizing concurrency issues.
  * </p>
  *
- * <h3>Usage Guidelines:</h3>
+ * <b>Usage Guidelines:</b>
  * <ul>
  *     <li>Use {@link PartitionKeyAwareVirtualExecutorStrategy} for **IO-bound** scenarios (DB queries, API calls, messaging) → Virtual Threads.</li>
  *     <li>Use {@link PartitionKeyAwareExecutorStrategy} for **CPU-bound** scenarios (intensive computations, multi-threaded processing) → OS Threads.</li>
  * </ul>
  *
- * <h3>Key Features:</h3>
+ * <b>Key Features:</b>
  * <ul>
  *     <li>Ensures affinity-based processing of Kafka records by mapping partition keys to worker threads.</li>
  *     <li>Supports a configurable number of worker threads, each handling a dedicated partition group.</li>
@@ -103,14 +103,12 @@ public class PartitionKeyAwareExecutorStrategy implements ExecutorStrategy {
 
     /**
      * Extracts the partition key from the given Kafka consumer record.
-     * <p>
      * The partition key is determined based on the following priority order:
      * <ul>
      *     <li>If the message implements {@link PartitionKeyAware}, the partition key from the message is used.</li>
      *     <li>If the record has a non-null key, its hash code is used as the partition key.</li>
      *     <li>Otherwise, the hash code of the message value is used.</li>
      * </ul>
-     * </p>
      * If you want to customize your partition key, you should override the method
      *
      * @param record The Kafka consumer record.

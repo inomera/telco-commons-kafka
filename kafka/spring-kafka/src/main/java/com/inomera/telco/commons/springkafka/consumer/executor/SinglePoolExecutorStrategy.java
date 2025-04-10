@@ -19,13 +19,13 @@ import java.util.function.Supplier;
  * calculations, data transformations, and parallel processing that require multiple OS threads.
  * </p>
  *
- * <h3>Usage Guidelines:</h3>
+ * <b>Usage Guidelines:</b>
  * <ul>
  *     <li>Use {@link SinglePoolExecutorStrategy} for **CPU-bound** scenarios (intensive computations, multi-threaded processing) → OS Threads.</li>
  *     <li>Use {@link PartitionKeyAwareVirtualExecutorStrategy} for **IO-bound** scenarios (DB queries, API calls, messaging) → Virtual Threads.</li>
  * </ul>
  *
- * <h3>Key Features:</h3>
+ * <b>Key Features:</b>
  * <ul>
  *     <li>Uses a **fixed-size thread pool** for predictable performance.</li>
  *     <li>Supports dynamic reconfiguration of thread pool parameters.</li>

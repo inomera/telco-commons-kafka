@@ -1,8 +1,14 @@
 apply plugin: 'maven-publish'
 
 
+tasks.register('javadocJar', Jar) {
+    dependsOn javadoc
+    archiveClassifier.set("javadoc")
+    from javadoc.destinationDir
+}
+
 tasks.register('sourceJar', Jar) {
     duplicatesStrategy = 'include'
     archiveClassifier.set("sources")
-    from sourceSets.main.allSource
+    from sourceSets.main.allJava
 }

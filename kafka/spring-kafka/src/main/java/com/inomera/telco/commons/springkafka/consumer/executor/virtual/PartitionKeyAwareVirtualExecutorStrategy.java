@@ -17,13 +17,13 @@ import java.util.concurrent.*;
  * It is optimized for IO-bound workloads such as database queries, API calls, and messaging.
  * </p>
  *
- * <h3>Usage</h3>
+ * <b>Usage</b>
  * <ul>
  *     <li>Use {@link PartitionKeyAwareVirtualExecutorStrategy} for IO-bound tasks → Virtual Threads</li>
  *     <li>Use {@link PartitionKeyAwareExecutorStrategy} for CPU-bound tasks → OS Threads</li>
  * </ul>
  *
- * <h3>Behavior</h3>
+ * <b>Behavior</b>
  * <ul>
  *     <li>Each unique partition key is mapped to a dedicated Virtual Thread Executor.</li>
  *     <li>Ensures ordered processing of records with the same partition key.</li>

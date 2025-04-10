@@ -13,10 +13,7 @@ public class NoProducerAvailableException extends RuntimeException {
     private static final long serialVersionUID = 1L;
 
     /**
-     * -- GETTER --
      *  Return the transaction id prefix that was used to create the producer and failed.
-     *
-     * @return the transaction id prefix.
      */
     private final String txIdPrefix;
 

@@ -18,7 +18,7 @@ import java.util.function.Function;
  * This strategy ensures that each topic or business key has its own Virtual Thread Pool.
  * </p>
  *
- * <h3>Usage Guidelines:</h3>
+ * <b>Usage Guidelines:</b>
  * <ul>
  *     <li>Fully based on **Virtual Threads** (for IO-bound workloads like DB queries, API calls, messaging).</li>
  *     <li>Automatically assigns a new Virtual Thread per Kafka record.</li>

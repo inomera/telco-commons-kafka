@@ -1,10 +1,19 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'signing'
 }
 
 apply from: "${rootProject.rootDir}/gradle/tests.gradle"
 apply from: "${rootProject.rootDir}/gradle/publishing.gradle"
+
+def isSnapshot = Boolean.parseBoolean(System.getenv("SNAPSHOT_RELEASE"))
+def mavenSnapshotUrl = project.findProperty('mavenSnapshotUrl') ?: 'https://oss.sonatype.org/content/repositories/snapshots/'
+def mavenReleaseUrl = project.findProperty('mavenReleaseUrl') ?: 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
+def mavenUsername = project.findProperty('mavenUsername') ?: 'Undefined'
+def mavenPassword = project.findProperty('mavenPassword') ?: 'Undefined'
+def mavenPackageGroup = project.findProperty('mavenPackageGroup') ?: 'com.inomera'
+
 
 group = 'com.inomera.telco.commons'
 version = project.file('VERSION').text.trim()
@@ -20,6 +29,19 @@ configurations {
         extendsFrom compileOnly
     }
 }
+
+compileJava.dependsOn(processResources)
+
+artifacts {
+    archives sourceJar
+    archives javadocJar
+}
+
+// Signing
+signing {
+    sign configurations.archives
+}
+signArchives.onlyIf { gradle.taskGraph.hasTask(publish) && !isSnapshot }
 
 dependencies {
     implementation "com.inomera.telco.commons:lang:${versions.lang}"
@@ -52,14 +74,147 @@ tasks.named('jar') {
 publishing {
     publications {
         mavenJava(MavenPublication) {
+            from components.java
             groupId = "${project.group}"
             artifactId = "${project.name}"
             version = "${project.version}"
 
-            from components.java
-            artifact tasks.sourceJar
+            pom {
+                name = 'kafka-json'
+                description = 'Enterprise Grade Spring Boot supported Apache Kafka Java Library. Json Data Format Support'
+                url = 'https://github.com/inomera/kafka-json'
+
+                organization {
+                    name = 'Inomera Research'
+                    url = 'https://inomera.com/'
+                }
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'http://www.opensource.org/licenses/mit-license.php'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'sedran'
+                        name = 'Serdar Kuzucu'
+                        organization = 'Inomera'
+                        organizationUrl = 'https://github.com/sedran'
+                    }
+                    developer {
+                        id = 'turgaycan'
+                        name = 'Turgay Can'
+                        organization = 'Inomera'
+                        organizationUrl = 'https://github.com/turgaycan'
+                    }
+                    developer {
+                        id = 'FatihBozik'
+                        name = 'Fatih Bozik'
+                        organization = 'Inomera'
+                        organizationUrl = 'https://github.com/FatihBozik'
+                    }
+                    developer {
+                        id = 'kenankartal'
+                        name = 'Kenan Kartal'
+                        organization = 'Inomera'
+                        organizationUrl = 'https://github.com/kenankartal'
+                    }
+                    developer {
+                        id = 'bkandil'
+                        name = 'Burak Kandil'
+                        organization = 'Inomera'
+                        organizationUrl = 'https://github.com/bkandil'
+                    }
+                }
+                scm {
+                    url = 'https://github.com/inomera/kafka-json'
+                    connection = 'scm:git:https://github.com/inomera/kafka-json.git'
+                    developerConnection = 'scm:git:https://github.com/inomera/kafka-json.git'
+                }
+                issueManagement {
+                    system = 'GitHub'
+                    url = 'https://github.com/inomera/kafka-json/issues'
+                }
+            }
+
+            // create the sign pom artifact
+            pom.withXml {
+                def root = asNode()
+
+                // eliminate test-scoped dependencies (no need in maven central POMs)
+                root.dependencies.removeAll { dep ->
+                    dep.scope == "test"
+                }
+
+                def pomFile = file("${project.buildDir}/${project.name}-${project.version}.pom")
+                writeTo(pomFile)
+                println("pomFile -> $pomFile")
+                def pomAscFile = signing.sign(pomFile).signatureFiles[0]
+                println("pomAscFile -> $pomAscFile")
+                artifact(pomAscFile) {
+                    classifier = null
+                    extension = 'pom.asc'
+                }
+            }
+
+            artifact(sourceJar) {
+                classifier = 'sources'
+            }
+            artifact(javadocJar) {
+                classifier = 'javadoc'
+            }
+
+            // create the signed artifacts
+
+            def archives = project.tasks.signArchives
+            println("archives -> $archives")
+
+            def files = archives.signatureFiles
+            println("signatureFiles -> $files")
+            files.each {
+                artifact(it) {
+                    def matcher = it.file =~ /-(sources|javadoc)\.jar\.asc$/
+                    println("it.file -> $it.file")
+                    if (matcher.find()) {
+                        classifier = matcher.group(1)
+                        println("classifier -> $classifier")
+                    } else {
+                        classifier = null
+                    }
+                    extension = 'jar.asc'
+                }
+            }
         }
     }
+
+    repositories {
+        maven {
+            url = isSnapshot ? "${mavenSnapshotUrl}" : "${mavenReleaseUrl}"
+            println("Publishing to ${url}")
+            credentials {
+                username "${mavenUsername}"
+                println("username -> ${mavenUsername}")
+                password "${mavenPassword}"
+                println("password -> ${mavenPassword}")
+            }
+        }
+    }
+}
+
+model {
+    tasks.generatePomFileForMavenJavaPublication {
+        destination = file("$projectDir/${project.name}-${project.version}.pom")
+    }
+    tasks.publishMavenJavaPublicationToMavenLocal {
+        dependsOn project.tasks.signArchives
+    }
+    tasks.publishMavenJavaPublicationToMavenRepository {
+        dependsOn project.tasks.signArchives
+    }
+}
+
+tasks.withType(GenerateModuleMetadata).configureEach {
+    enabled = false
 }
 
 tasks.generatePomFileForMavenJavaPublication {

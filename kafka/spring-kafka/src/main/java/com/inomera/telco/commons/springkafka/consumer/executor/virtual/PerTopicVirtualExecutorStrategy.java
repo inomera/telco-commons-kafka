@@ -20,14 +20,14 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * It is optimized for high-concurrency IO-bound workloads such as API calls, database queries, and messaging.
  * </p>
  *
- * <h3>Key Features:</h3>
+ * <b>Key Features:</b>
  * <ul>
  *     <li>Uses Java 23 Virtual Threads (Project Loom) for lightweight, scalable concurrency.</li>
  *     <li>Ensures topic-based isolation, where each topic gets its own executor.</li>
  *     <li>Dynamically creates Virtual Threads on demand, reducing resource contention.</li>
  * </ul>
  *
- * <h3>Usage Guidelines:</h3>
+ * <b>Usage Guidelines:</b>
  * <ul>
  *     <li>For **IO-bound tasks** (e.g., DB queries, API calls), this strategy leverages Virtual Threads.</li>
  *     <li>For **CPU-bound tasks**, consider using an OS thread-based executor.</li>

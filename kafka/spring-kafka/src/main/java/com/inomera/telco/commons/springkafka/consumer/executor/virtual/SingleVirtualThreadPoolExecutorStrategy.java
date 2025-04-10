@@ -15,13 +15,13 @@ import java.util.concurrent.ThreadFactory;
  * It provides a single-threaded virtual executor for tasks such as database queries, API calls, and messaging.
  * </p>
  *
- * <h3>Usage Guidelines:</h3>
+ * <b>Usage Guidelines:</b>
  * <ul>
  *     <li>Use {@link SingleVirtualThreadPoolExecutorStrategy} for **IO-bound** scenarios (DB queries, API calls, messaging) → Virtual Threads.</li>
  *     <li>Use {@link SinglePoolExecutorStrategy} for **CPU-bound** scenarios (intensive computations, multi-threaded processing) → OS Threads.</li>
  * </ul>
  *
- * <h3>Key Features:</h3>
+ * <b>Key Features:</b>
  * <ul>
  *     <li>Creates a single Virtual Thread-based executor for task execution.</li>
  *     <li>Dynamically starts and stops the executor when required.</li>
