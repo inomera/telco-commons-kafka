@@ -61,7 +61,7 @@ implementation 'com.inomera.telco.commons:kafka-protobuf:2.4.0'
 implementation 'com.inomera.telco.commons:kafka-smile:2.4.0'
 ```
 
-JDK 8 & 11 Support
+JDK 8 & 11 Support (!!Not published to central maven repository!!)
 
 ```groovy
 implementation 'com.inomera.telco.commons:spring-kafka:2.3.8'
