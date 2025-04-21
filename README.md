@@ -21,6 +21,7 @@ Use lightweigth Virtual Threads.. minimum resources, maximum capacity of process
 - **max.poll.records**: 1000  
 - **Worker threads (for OS threads case)**: 360
 - **Worker threads delay**: 100 ms(millis)
+- **Lib version**: 4.0.0
 
 ---
 
