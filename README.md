@@ -8,8 +8,6 @@ Telco Commons Kafka is a lightweight, Spring-friendly Kafka integration library 
 Use lightweigth Virtual Threads.. minimum resources, maximum capacity of process messages!!
 
 
-Here is your Apache Kafka consumer library processing benchmark data, converted into a **markdown table format** for easier visualization and comparison.
-
 # Benchmark (OS vs Virtual Threads)
 
 ---
