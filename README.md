@@ -5,6 +5,69 @@
 
 Telco Commons Kafka is a lightweight, Spring-friendly Kafka integration library designed for enterprise-scale messaging systems. It provides seamless support for multiple serialization formats including JSON, Kryo, Protobuf, and Smile, Avro(next minor version) and offers ready-to-use configuration properties for both producers and consumers. With a focus on simplicity, type-safety, and flexibility, this library makes it easy to build reactive and event-driven microservices using Apache Kafka and Spring Boot.
 
+Use lightweigth Virtual Threads.. minimum resources, maximum capacity of process messages!!
+
+
+Here is your Apache Kafka consumer library processing benchmark data, converted into a **markdown table format** for easier visualization and comparison.
+
+# Benchmark (OS vs Virtual Threads)
+
+---
+
+## 🧪 **Benchmark Setup**
+
+- **Kafka Cluster**: 3 nodes  
+- **Producer Messages**: 10K and 100K  
+- **JVM Args**: `-Xms50m -Xmx256m`  
+- **Instance**: Single JVM  
+- **max.poll.records**: 1000  
+- **Worker threads (for OS threads case)**: 360
+- **Worker threads delay**: 100 ms(millis)
+
+---
+
+## 📊 10K Records - Virtual Threads
+
+| Case | Consumer Configs             | Duration    | TPS     | Max CPU | Memory |
+|------|------------------------------|-------------|---------|---------|--------|
+| 1    | AT_MOST_ONCE_BULK           | ~0.978s     | 10K     | 13%     | 104 MB |
+| 2    | AT_MOST_ONCE_SINGLE         | ~118s       | 85      | 13%     | 104 MB |
+| 3    | AT_LEAST_ONCE_BULK          | ~1.052s     | 10K     | 13%     | 104 MB |
+| 4    | AT_LEAST_ONCE_SINGLE        | ~1.152s     | 10K     | 13%     | 104 MB |
+
+---
+
+## 📊 10K Records - OS Threads
+
+| Case | Consumer Configs             | Duration    | TPS     | Max CPU | Memory | Worker Threads |
+|------|------------------------------|-------------|---------|---------|--------|----------------|
+| 1    | AT_MOST_ONCE_BULK           | ~3.019s     | 3.33K   | 13%     | 77 MB  | 360            |
+| 2    | AT_MOST_ONCE_SINGLE         | ~118s       | 85      | 13%     | 77 MB  | 360            |
+| 3    | AT_LEAST_ONCE_BULK          | ~3.067s     | 3.33K   | 13%     | 77 MB  | 360            |
+| 4    | AT_LEAST_ONCE_SINGLE        | ~3.151s     | 3.1K    | 13%     | 77 MB  | 360            |
+
+---
+
+## 📊 100K Records - Virtual Threads
+
+| Case | Consumer Configs             | Duration    | TPS     | Max CPU | Memory |
+|------|------------------------------|-------------|---------|---------|--------|
+| 1    | AT_MOST_ONCE_BULK           | ~2.595s     | 38.4K   | 24%     | 310 MB |
+
+---
+
+## 📊 100K Records - OS Threads
+
+| Case | Consumer Configs             | Duration    | TPS     | Max CPU | Memory | Worker Threads |
+|------|------------------------------|-------------|---------|---------|--------|----------------|
+| 1    | AT_MOST_ONCE_BULK           | ~28.794s    | 3.4K    | 26%     | 290 MB | 360            |
+
+---
+
+Let me know if you'd like a chart or visual comparison (bar graph, heatmap, etc.) to go along with this markdown!
+
+
+
 
 # Version Compatability
 
