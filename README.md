@@ -16,7 +16,7 @@ Use lightweigth Virtual Threads.. minimum resources, maximum capacity of process
 
 - **Kafka Cluster**: 3 nodes  
 - **Producer Messages**: 10K and 100K  
-- **JVM Args**: `-Xms50m -Xmx256m`  
+- **JVM Args**: `-Xms50m -Xmx2256m`  
 - **Instance**: Single JVM  
 - **max.poll.records**: 1000  
 - **Worker threads (for OS threads case)**: 360
