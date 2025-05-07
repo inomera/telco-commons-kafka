@@ -19,6 +19,13 @@ public class ManagementRestController {
 
     private final ApplicationContext applicationContext;
 
+    @GetMapping(value = "start-produce")
+    public void startProtobuf() {
+        LOG.info("start protobuf called");
+        final SomeSender someSender = (SomeSender) applicationContext.getBean("someSender");
+        someSender.publishRandomText();
+    }
+
     @GetMapping(value = "start-consume")
     public void start() {
         LOG.info("start called");

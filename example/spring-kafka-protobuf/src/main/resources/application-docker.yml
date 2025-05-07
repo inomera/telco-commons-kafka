@@ -18,7 +18,7 @@ kafka-producers:
       retries=2147483647
       max.in.flight.requests.per.connection=1
       acks=all
-      linger.ms=10
+      linger.ms=5
       metadata.max.age.ms=10000
       compression.type=lz4
       transaction.timeout.ms=10000
@@ -36,7 +36,8 @@ kafka-consumers:
       max.poll.records=1000
       reconnect.backoff.ms=5000
       reconnect.backoff.max.ms=9223372036854775806
-    number-of-invoker-threads: 720
+      partition.number=6
+    number-of-invoker-threads: 6
     offset-commit-strategy: AT_MOST_ONCE_BULK
     pollerThreadProperties: |-
       poller.thread.checker.active=true

@@ -1,6 +1,3 @@
-spring:
-  profiles:
-    active: docker
 logging:
   pattern:
     console: '%clr(%d{HH:mm:ss.SSS}){blue} %clr(%-5p) %clr([%15t]){cyan} %clr(:){red} %clr(%m){faint}%n'
@@ -8,13 +5,13 @@ logging:
     com:
       inomera: DEBUG
 server:
-  port: 8082
+  port: 8081
 
 kafka-producers:
   default:
     properties: |
       max.request.size=15728640
-      bootstrap.servers=localhost:9092
+      bootstrap.servers=localhost:9092,localhost:19092,localhost:29092
       enable.idempotence=true
       retries=2147483647
       max.in.flight.requests.per.connection=1
@@ -22,22 +19,19 @@ kafka-producers:
       linger.ms=5
       metadata.max.age.ms=10000
       compression.type=lz4
-      retry.backoff.ms=50
-      request.timeout.ms=180000
-      max.block.ms=190000
-      reconnect.backoff.ms=100
-      reconnect.backoff.max.ms=9223372036854775806
+      transaction.timeout.ms=10000
+
 kafka-consumers:
   default:
     properties: |-
-      bootstrap.servers=localhost:9092
+      bootstrap.servers=localhost:9092,localhost:19092,localhost:29092
       metadata.max.age.ms=10000
       enable.auto.commit=false
       auto.offset.reset=earliest
       heartbeat.interval.ms=10000
       request.timeout.ms=31000
       session.timeout.ms=30000
-      max.poll.records=100
+      max.poll.records=1000
       reconnect.backoff.ms=5000
       reconnect.backoff.max.ms=9223372036854775806
       partition.number=6
@@ -49,7 +43,7 @@ kafka-consumers:
       poller.thread.checker.retryAsSec=30
   retry:
     properties: |-
-      bootstrap.servers=localhost:9092
+      bootstrap.servers=localhost:9092,localhost:19092,localhost:29092
       metadata.max.age.ms=10000
       enable.auto.commit=false
       auto.offset.reset=earliest
