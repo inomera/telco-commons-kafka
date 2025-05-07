@@ -1,13 +1,101 @@
+# Telco Commons Kafka Java Library
+
+![Build](https://github.com/inomera/telco-commons-kafka/workflows/Build/badge.svg)
+
+
+Telco Commons Kafka is a lightweight, Spring-friendly Kafka integration library designed for enterprise-scale messaging systems. It provides seamless support for multiple serialization formats including JSON, Kryo, Protobuf, and Smile, Avro(next minor version) and offers ready-to-use configuration properties for both producers and consumers. With a focus on simplicity, type-safety, and flexibility, this library makes it easy to build reactive and event-driven microservices using Apache Kafka and Spring Boot.
+
+Use lightweigth Virtual Threads.. minimum resources, maximum capacity of process messages!!
+
+
+# Benchmark (OS vs Virtual Threads)
+
+---
+
+## 🧪 **Benchmark Setup**
+
+- **Kafka Cluster**: 3 nodes  
+- **Producer Messages**: 10K and 100K  
+- **JVM Args**: `-Xms50m -Xmx2256m`  
+- **Instance**: Single JVM  
+- **max.poll.records**: 1000  
+- **Worker threads (for OS threads case)**: 360
+- **Worker threads delay**: 100 ms(millis)
+- **Lib version**: 4.0.0
+
+---
+
+## 📊 10K Records - Virtual Threads
+
+| Case | Consumer Configs             | Duration    | TPS     | Max CPU | Memory |
+|------|------------------------------|-------------|---------|---------|--------|
+| 1    | AT_MOST_ONCE_BULK           | ~0.978s     | 10K     | 13%     | 104 MB |
+| 2    | AT_MOST_ONCE_SINGLE         | ~118s       | 85      | 13%     | 104 MB |
+| 3    | AT_LEAST_ONCE_BULK          | ~1.052s     | 10K     | 13%     | 104 MB |
+| 4    | AT_LEAST_ONCE_SINGLE        | ~1.152s     | 10K     | 13%     | 104 MB |
+
+---
+
+## 📊 10K Records - OS Threads
+
+| Case | Consumer Configs             | Duration    | TPS     | Max CPU | Memory | Worker Threads |
+|------|------------------------------|-------------|---------|---------|--------|----------------|
+| 1    | AT_MOST_ONCE_BULK           | ~3.019s     | 3.33K   | 13%     | 77 MB  | 360            |
+| 2    | AT_MOST_ONCE_SINGLE         | ~118s       | 85      | 13%     | 77 MB  | 360            |
+| 3    | AT_LEAST_ONCE_BULK          | ~3.067s     | 3.33K   | 13%     | 77 MB  | 360            |
+| 4    | AT_LEAST_ONCE_SINGLE        | ~3.151s     | 3.1K    | 13%     | 77 MB  | 360            |
+
+---
+
+## 📊 100K Records - Virtual Threads
+
+| Case | Consumer Configs             | Duration    | TPS     | Max CPU | Memory |
+|------|------------------------------|-------------|---------|---------|--------|
+| 1    | AT_MOST_ONCE_BULK           | ~2.595s     | 38.4K   | 24%     | 310 MB |
+
+---
+
+## 📊 100K Records - OS Threads
+
+| Case | Consumer Configs             | Duration    | TPS     | Max CPU | Memory | Worker Threads |
+|------|------------------------------|-------------|---------|---------|--------|----------------|
+| 1    | AT_MOST_ONCE_BULK           | ~28.794s    | 3.4K    | 26%     | 290 MB | 360            |
+
+---
+
+Let me know if you'd like a chart or visual comparison (bar graph, heatmap, etc.) to go along with this markdown!
+
+
+
+
 # Version Compatability
 
 Compatability Matrix
 
 | Version | JDK   | Spring  | Kafka Client | Kafka Server |
 |---------|-------|---------|--------------|--------------|
-| v4.x.x  | JDK23 | 3.4.2   | 3.9.0 >=     | 3.9.0 >=     |
-| v3.x.x  | JDK17 | 3.1.5   | 3.0.2 >=     | 3.0.0 >=     |
-| v2.4.x  | JDK17 | 3.1.5   | 1.1.0 >=     | 1.1.0 >=     |
-| v2.3.x  | JDK11 | 2.7.12+ | 3.0.2 >=     | 3.0.0 >=     |
+| v4.x.x  | 23 | 3.4.2   | 3.9.0 >=     | 3.9.0 >=     |
+| v3.x.x  | 17 | 3.1.5   | 3.0.2 >=     | 3.0.0 >=     |
+| v2.4.x  | 17 | 3.1.5   | 1.1.0 >=     | 1.1.0 >=     |
+| v2.3.x  | 8,11 | 2.7.12+ | 3.0.2 >=     | 3.0.0 >=     |
+
+## Subprojects
+
+| Artifact       | Version                                                                                                                                                                                                                          |
+|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| spring-kafka   | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/spring-kafka/badge.svg?version=4.0.0)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/spring-kafka)     |
+| kafka-json     | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-json/badge.svg?version=4.0.0)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-json)         |
+| kafka-kryo     | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-kryo/badge.svg?version=4.0.0)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-kryo)         |
+| kafka-protobuf | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-protobuf/badge.svg?version=4.0.0)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-protobuf) |
+| kafka-smile    | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-smile/badge.svg?version=4.0.0)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-smile)       |
+| -              | -                                                                                                                                                                                                                                |
+| spring-kafka   | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/spring-kafka/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/spring-kafka)     |
+| kafka-json     | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-json/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-json)         |
+| kafka-kryo     | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-kryo/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-kryo)         |
+| kafka-protobuf | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-protobuf/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-protobuf) |
+| kafka-smile    | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-smile/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-smile)       |
+
+
 
 ## With Gradle
 
@@ -39,7 +127,7 @@ implementation 'com.inomera.telco.commons:kafka-protobuf:2.4.0'
 implementation 'com.inomera.telco.commons:kafka-smile:2.4.0'
 ```
 
-JDK 8 & 11 Support
+JDK 8 & 11 Support (!!Not published to central maven repository!!)
 
 ```groovy
 implementation 'com.inomera.telco.commons:spring-kafka:2.3.8'
