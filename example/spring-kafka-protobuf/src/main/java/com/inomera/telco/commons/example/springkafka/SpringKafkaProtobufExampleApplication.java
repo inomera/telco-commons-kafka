@@ -17,6 +17,7 @@ import com.inomera.telco.commons.springkafka.producer.KafkaTransactionalMessageP
 import messaging.OrderMessage;
 import messaging.PartitionMessage;
 import messaging.PaymentMessage;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -101,7 +102,7 @@ public class SpringKafkaProtobufExampleApplication {
                                                 KafkaProtobufDeserializer kafkaDeserializer) {
 
         Properties consumerProperties = defaultKafkaConsumerConfigurationProperties.getProperties();
-        int partitionNumber = (int) consumerProperties.getOrDefault("partition.number", 6);
+        int partitionNumber = NumberUtils.toInt((String) consumerProperties.getOrDefault("partition.number", 6), 6);
         return virtualKafkaConsumerBuilder.properties(consumerProperties)
                 .groupId(VIRTUAL_EVENT_LOGGER)
                 .topics(KafkaTopicUtils.getTopicNames(
@@ -117,7 +118,7 @@ public class SpringKafkaProtobufExampleApplication {
                 .custom(new CustomPartitionKeyAwareVirtualExecutorStrategy(partitionNumber, VIRTUAL_EVENT_LOGGER))
                 .and()
                 .threadStore(consumerThreadStore())
-                .build();
+                .buildBulk();
     }
 
     @Bean

@@ -9,6 +9,7 @@ import org.apache.kafka.common.*;
 import org.apache.kafka.common.errors.OutOfOrderSequenceException;
 import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.common.errors.TimeoutException;
+import org.apache.kafka.common.metrics.KafkaMetric;
 import org.apache.kafka.common.telemetry.internals.ClientTelemetryReporter;
 import org.apache.kafka.common.telemetry.internals.ClientTelemetryUtils;
 import org.slf4j.Logger;
@@ -56,7 +57,7 @@ public class CloseSafeProducer<K, V> implements Producer<K, V> {
 
     CloseSafeProducer(Producer<K, V> delegate,
                       BiPredicate<CloseSafeProducer<K, V>, Duration> removeProducer, @Nullable String txIdPrefix,
-                      @Nullable String txIdSuffix,ProducerConfig producerConfig, Duration closeTimeout, int epoch) {
+                      @Nullable String txIdSuffix, ProducerConfig producerConfig, Duration closeTimeout, int epoch) {
         Assert.isTrue(!(delegate instanceof CloseSafeProducer), "Cannot double-wrap a producer");
         this.delegate = delegate;
         this.removeProducer = removeProducer;
@@ -132,14 +133,6 @@ public class CloseSafeProducer<K, V> implements Producer<K, V> {
     }
 
     @Override
-    @SuppressWarnings("deprecation")
-    public void sendOffsetsToTransaction(Map<TopicPartition, OffsetAndMetadata> offsets, String consumerGroupId)
-            throws ProducerFencedException {
-        LOGGER.trace("{} sendOffsetsToTransaction({}, {})", this, offsets, consumerGroupId);
-        this.delegate.sendOffsetsToTransaction(offsets, consumerGroupId);
-    }
-
-    @Override
     public void sendOffsetsToTransaction(Map<TopicPartition, OffsetAndMetadata> offsets,
                                          ConsumerGroupMetadata groupMetadata) throws ProducerFencedException {
         LOGGER.trace("{} sendOffsetsToTransaction({}, {})", this, offsets, groupMetadata);
@@ -172,6 +165,18 @@ public class CloseSafeProducer<K, V> implements Producer<K, V> {
             this.producerFailed = e;
             throw e;
         }
+    }
+
+    @Override
+    public void registerMetricForSubscription(KafkaMetric metric) {
+        LOGGER.info("delegate registerMetricForSubscription: {}", metric);
+        this.delegate.registerMetricForSubscription(metric);
+    }
+
+    @Override
+    public void unregisterMetricFromSubscription(KafkaMetric metric) {
+        LOGGER.info("delegate unregisterMetricFromSubscription: {}", metric);
+        this.delegate.unregisterMetricFromSubscription(metric);
     }
 
     @Override

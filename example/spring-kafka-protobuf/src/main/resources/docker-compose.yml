@@ -1,7 +1,7 @@
 version: '3'
 services:
   broker:
-    image: bitnami/kafka:3.9.0
+    image: bitnami/kafka:4.0.0
     hostname: broker
     container_name: broker
     ports:
@@ -25,9 +25,9 @@ services:
 
       # Clustering
       KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: 2
       KAFKA_CFG_NUM_PARTITIONS: 6
 
       # KIP-848
@@ -35,7 +35,7 @@ services:
       KAFKA_CFG_TRANSACTION_PARTITION_VERIFICATION_ENABLE: "false"
 
   broker-2:
-    image: bitnami/kafka:3.9.0
+    image: bitnami/kafka:4.0.0
     hostname: broker-2
     container_name: broker-2
     ports:
@@ -59,9 +59,9 @@ services:
 
       # Clustering
       KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: 2
       KAFKA_CFG_NUM_PARTITIONS: 6
 
       # KIP-848
@@ -69,7 +69,7 @@ services:
       KAFKA_CFG_TRANSACTION_PARTITION_VERIFICATION_ENABLE: "false"
 
   broker-3:
-    image: bitnami/kafka:3.9.0
+    image: bitnami/kafka:4.0.0
     hostname: broker-3
     container_name: broker-3
     ports:
@@ -93,9 +93,9 @@ services:
 
       # Clustering
       KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: 2
       KAFKA_CFG_NUM_PARTITIONS: 6
 
       # KIP-848
