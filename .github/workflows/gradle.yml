@@ -5,9 +5,7 @@ name: Build
 
 on:
   push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+    branches: [ master, v4.x.x ]
 
 jobs:
   build:
@@ -15,6 +13,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
       - name: JDK
         uses: actions/setup-java@v4
         with:
