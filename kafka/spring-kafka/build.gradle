@@ -8,8 +8,8 @@ apply from: "${rootProject.rootDir}/gradle/tests.gradle"
 apply from: "${rootProject.rootDir}/gradle/publishing.gradle"
 
 def isSnapshot = Boolean.parseBoolean(System.getenv("SNAPSHOT_RELEASE"))
-def mavenSnapshotUrl = project.findProperty('mavenSnapshotUrl') ?: 'https://oss.sonatype.org/content/repositories/snapshots/'
-def mavenReleaseUrl = project.findProperty('mavenReleaseUrl') ?: 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
+def mavenSnapshotUrl = project.findProperty('mavenSnapshotUrl') ?: 'https://central.sonatype.com/content/repositories/snapshots/'
+def mavenReleaseUrl = project.findProperty('mavenReleaseUrl') ?: 'https://central.sonatype.com/service/local/staging/deploy/maven2/'
 def mavenUsername = project.findProperty('mavenUsername') ?: 'Undefined'
 def mavenPassword = project.findProperty('mavenPassword') ?: 'Undefined'
 def mavenPackageGroup = project.findProperty('mavenPackageGroup') ?: 'com.inomera'

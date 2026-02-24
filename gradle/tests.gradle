@@ -8,7 +8,9 @@ test {
     }
 
     reports {
-        html.required = true
+        html {
+            required.set(true)
+        }
     }
 }
 
@@ -18,8 +20,14 @@ jacoco {
 
 jacocoTestReport {
     reports {
-        xml.required = true
-        csv.required = true
-        html.outputLocation = file("${projectDir}/jacocoHtml")
+        xml {
+            required.set(true)
+        }
+        csv {
+            required.set(true)
+        }
+        html {
+            outputLocation.set(file("${projectDir}/jacocoHtml"))
+        }
     }
 }
