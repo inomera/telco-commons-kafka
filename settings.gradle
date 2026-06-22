@@ -17,3 +17,6 @@ project(':kafka-smile').projectDir = new File('kafka/smile')
 
 include ':kafka-protobuf'
 project(':kafka-protobuf').projectDir = new File('kafka/protobuf')
+
+include ':kafka-json'
+project(':kafka-json').projectDir = new File('kafka/json')
