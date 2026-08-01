@@ -15,6 +15,13 @@ tasks.withType(Test).configureEach {
     // Throughput benchmarks are opt-in: ./gradlew :spring-kafka:test -Pbenchmark=true
     systemProperty 'benchmark', (project.findProperty('benchmark') ?: '') as String
 
+    // Extra JVM args for the test JVM, used to sweep garbage collectors:
+    //   -PbenchmarkJvmArgs="-XX:+UseZGC -Xmx1g"
+    def extraJvmArgs = (project.findProperty('benchmarkJvmArgs') ?: '') as String
+    if (!extraJvmArgs.isBlank()) {
+        jvmArgs extraJvmArgs.split('\\s+').toList()
+    }
+
     testLogging {
         events "skipped", "failed"
         exceptionFormat = 'full'

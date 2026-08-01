@@ -63,20 +63,28 @@ class ThroughputBenchmarkTest {
         }
         final StringBuilder out = new StringBuilder("\n")
                 .append("=".repeat(118)).append('\n')
-                .append(String.format("%-44s %-14s %8s %9s %10s %9s %10s%n",
-                        "CASE", "THREADS", "RECORDS", "DISP.ms", "DISP.TPS", "E2E.ms", "E2E.TPS"))
+                .append(String.format("%-40s %-14s %8s %8s %9s %6s %8s %8s %9s%n",
+                        "CASE", "THREADS", "RECORDS", "E2E.ms", "E2E.TPS",
+                        "GCs", "GC.ms", "ALLOC.MB", "B/record"))
                 .append("=".repeat(118)).append('\n');
         REPORT.forEach(line -> out.append(line).append('\n'));
         out.append("=".repeat(118)).append('\n')
-                .append("DISP = first listener call -> last listener call (commits off the critical path\n")
-                .append("       for at-least-once, so this is dispatch+listener throughput over prefetched data)\n")
-                .append("E2E  = consumer.start() -> last record consumed (includes group join and every commit)");
+                .append(String.format("JVM      : %s%n", System.getProperty("java.version")))
+                .append(String.format("Collector: %s (%s), compactObjectHeaders=%s%n",
+                        GcProbe.collectorLabel(), GcProbe.activeCollectors(), GcProbe.compactObjectHeaders()))
+                .append(String.format("Heap     : max=%dMB%n", Runtime.getRuntime().maxMemory() / (1024 * 1024)))
+                .append("E2E      = consumer.start() -> last record consumed (group join and every commit included)\n")
+                .append("GCs/GC.ms= collections and total pause time attributable to the case\n")
+                .append("B/record = bytes allocated per consumed record (all threads, virtual included)");
         System.out.println(out);
     }
 
-    private static void record(String caseName, String threads, int records, long dispatchMillis, long e2eMillis) {
-        REPORT.add(String.format("%-44s %-14s %8d %9d %10s %9d %10s", caseName, threads, records,
-                dispatchMillis, tps(records, dispatchMillis), e2eMillis, tps(records, e2eMillis)));
+    private static void record(String caseName, String threads, int records, long dispatchMillis,
+                               long e2eMillis, GcProbe.Delta gc) {
+        REPORT.add(String.format("%-40s %-14s %8d %8d %9s %6d %8d %8.1f %9.0f",
+                caseName, threads, records, e2eMillis, tps(records, e2eMillis),
+                gc.collections(), gc.pauseMillis(), gc.allocatedMb(),
+                gc.allocatedBytesPerRecord(records)));
     }
 
     private static String tps(int records, long millis) {
@@ -156,12 +164,14 @@ class ThroughputBenchmarkTest {
                 .and()
                 .build();
 
+        final GcProbe gcStart = GcProbe.capture();
         final long startedAt = System.nanoTime();
         consumer.start();
         try {
             E2eSupport.await(caseName, TIMEOUT, () -> bean.counter.count.get() >= records);
             final long e2eMillis = (System.nanoTime() - startedAt) / 1_000_000L;
-            record(caseName, "OS x8-16", records, bean.counter.elapsedMillis(), e2eMillis);
+            record(caseName, "OS x8-16", records, bean.counter.elapsedMillis(), e2eMillis,
+                    GcProbe.capture().since(gcStart));
         } finally {
             consumer.stop();
             E2eSupport.deleteTopic(topic);
@@ -199,12 +209,14 @@ class ThroughputBenchmarkTest {
                 .and()
                 .buildBulk();
 
+        final GcProbe gcStart = GcProbe.capture();
         final long startedAt = System.nanoTime();
         consumer.start();
         try {
             E2eSupport.await(caseName, TIMEOUT, () -> bean.counter.count.get() >= records);
             final long e2eMillis = (System.nanoTime() - startedAt) / 1_000_000L;
-            record(caseName, "OS x8-16", records, bean.counter.elapsedMillis(), e2eMillis);
+            record(caseName, "OS x8-16", records, bean.counter.elapsedMillis(), e2eMillis,
+                    GcProbe.capture().since(gcStart));
         } finally {
             consumer.stop();
             E2eSupport.deleteTopic(topic);
@@ -237,13 +249,14 @@ class ThroughputBenchmarkTest {
 
         final KafkaMessageConsumer consumer = invoker.and().build();
 
+        final GcProbe gcStart = GcProbe.capture();
         final long startedAt = System.nanoTime();
         consumer.start();
         try {
             E2eSupport.await(caseName, TIMEOUT, () -> bean.counter.count.get() >= records);
             final long e2eMillis = (System.nanoTime() - startedAt) / 1_000_000L;
             record(caseName, cap > 0 ? "virtual cap=" + cap : "virtual ∞", records,
-                    bean.counter.elapsedMillis(), e2eMillis);
+                    bean.counter.elapsedMillis(), e2eMillis, GcProbe.capture().since(gcStart));
         } finally {
             consumer.stop();
             E2eSupport.deleteTopic(topic);
