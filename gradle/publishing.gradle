@@ -20,7 +20,7 @@ def isSnapshot = Boolean.parseBoolean(System.getenv('SNAPSHOT_RELEASE'))
 def snapshotUrl = project.findProperty('mavenSnapshotUrl')
         ?: 'https://central.sonatype.com/content/repositories/snapshots/'
 def releaseUrl = project.findProperty('mavenReleaseUrl')
-        ?: 'https://central.sonatype.com/service/local/staging/deploy/maven2/'
+        ?: 'central.sonatype.com/api/v1/publisher/deployments'
 
 java {
     withSourcesJar()
@@ -85,8 +85,12 @@ publishing {
 }
 
 signing {
-    // Only sign real releases going to the remote repository. A plain `./gradlew build` and
-    // `publishToMavenLocal` must not require a GPG key to be configured.
+    // Sign through the local gpg binary and its agent, rather than requiring
+    // signing.keyId / signing.secretKeyRingFile. Optional overrides when the agent cannot
+    // resolve the key on its own: signing.gnupg.keyName, signing.gnupg.passphrase.
+    // (The Gradle method is useGpgCmd(); there is no useGnuPG().)
+    useGpgCmd()
+
     required {
         !isSnapshot && gradle.taskGraph.allTasks.any {
             it.name.startsWith('publish') && it.name.contains('MavenRepository')
