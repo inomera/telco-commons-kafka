@@ -16,11 +16,6 @@ def pubName = project.ext.pubName
 def pubDescription = project.ext.pubDescription
 def pubRepo = project.ext.pubRepo
 
-def isSnapshot = Boolean.parseBoolean(System.getenv('SNAPSHOT_RELEASE'))
-def snapshotUrl = project.findProperty('mavenSnapshotUrl')
-        ?: 'https://central.sonatype.com/content/repositories/snapshots/'
-def releaseUrl = project.findProperty('mavenReleaseUrl')
-        ?: 'central.sonatype.com/api/v1/publisher/deployments'
 
 java {
     withSourcesJar()
@@ -71,17 +66,6 @@ publishing {
             }
         }
     }
-
-    repositories {
-        maven {
-            name = 'mavenCentral'
-            url = isSnapshot ? snapshotUrl : releaseUrl
-            credentials {
-                username = (project.findProperty('mavenUsername') ?: '') as String
-                password = (project.findProperty('mavenPassword') ?: '') as String
-            }
-        }
-    }
 }
 
 signing {
@@ -92,9 +76,8 @@ signing {
     useGpgCmd()
 
     required {
-        !isSnapshot && gradle.taskGraph.allTasks.any {
-            it.name.startsWith('publish') && it.name.contains('MavenRepository')
-        }
+        !project.version.endsWith('-SNAPSHOT') &&
+                !Boolean.parseBoolean(System.getenv('SNAPSHOT_RELEASE'))
     }
     sign publishing.publications.mavenJava
 }

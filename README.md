@@ -613,11 +613,7 @@ mavenReleaseUrl=https://oss.sonatype.org/service/local/staging/deploy/maven2/
 mavenSnapshotUrl=https://oss.sonatype.org/content/repositories/snapshots/
 mavenUsername=************************
 mavenPassword=************************
-mavenPackageGroup=com.inomera
-
-signing.keyId=******
-signing.password=******
-signing.secretKeyRingFile=******.gpg
+mavenPackageGroup=com.inomera.telco.commons
 ```
 
 Then you need to invoke `release.sh` script in the project root directory.
@@ -647,7 +643,13 @@ For example, to publish the project `spring-kafka`,
 you need to execute the following command in project root:
 
 ```
-gradle :spring-kafka:publish
+./gradlew publishToSonatype :spring-kafka:closeSonatypeStagingRepository
+``` 
+
+Publish all libs.
+
+``` 
+./gradlew publishToSonatype closeSonatypeStagingRepository
 ``` 
 
 The repository will not allow you to publish the same version twice.

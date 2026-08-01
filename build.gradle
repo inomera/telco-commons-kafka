@@ -1,4 +1,44 @@
+plugins {
+    id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
+}
+
+group = 'com.inomera.telco.commons'
+
+ext {
+    versions = [
+            //toolchain
+            java           : '25',
+            //main libs
+            kafka_clients  : '4.1.2',
+            lang           : '3.1.0',
+            // Matches the spring-framework.version managed by Spring Boot 4.0.7.
+            spring         : '7.0.8',
+            spring_boot    : '4.0.7',
+            // Spring Framework 7 moved its nullability annotations to JSpecify.
+            jspecify       : '1.0.0',
+            //serialization
+            jackson        : '2.19.0',
+            protobuf       : '4.32.1',
+            kryo           : '5.6.2',
+            //example-only
+            guava          : '33.4.0-jre',
+            //ext libs
+            commons_lang3  : '3.17.0',
+            lombok         : '1.18.42',
+            jupiter        : '5.11.4',
+            junit_platform : '1.11.4',
+            mockito_core   : '5.15.2',
+            mockito_jupiter: '5.15.2',
+            hamcrest       : '3.0',
+            slf4j          : '2.0.17',
+    ]
+}
+
+
 subprojects {
+
+    group = rootProject.group
+
     repositories {
         mavenLocal()
         mavenCentral()
@@ -32,32 +72,15 @@ subprojects {
     }
 }
 
-ext {
-    versions = [
-            //toolchain
-            java           : '25',
-            //main libs
-            kafka_clients  : '4.1.2',
-            lang           : '3.1.0',
-            // Matches the spring-framework.version managed by Spring Boot 4.0.7.
-            spring         : '7.0.8',
-            spring_boot    : '4.0.7',
-            // Spring Framework 7 moved its nullability annotations to JSpecify.
-            jspecify       : '1.0.0',
-            //serialization
-            jackson        : '2.19.0',
-            protobuf       : '4.32.1',
-            kryo           : '5.6.2',
-            //example-only
-            guava          : '33.4.0-jre',
-            //ext libs
-            commons_lang3  : '3.17.0',
-            lombok         : '1.18.42',
-            jupiter        : '5.11.4',
-            junit_platform : '1.11.4',
-            mockito_core   : '5.15.2',
-            mockito_jupiter: '5.15.2',
-            hamcrest       : '3.0',
-            slf4j          : '2.0.17',
-    ]
+// Sonatype Central Portal Nexus Yapılandırması
+nexusPublishing {
+    repositories {
+        sonatype {
+            nexusUrl = uri('https://ossrh-staging-api.central.sonatype.com/service/local/')
+            snapshotRepositoryUrl = uri('https://central.sonatype.com/repository/maven-snapshots/')
+
+            username = (project.findProperty('mavenUsername') ?: '') as String
+            password = (project.findProperty('mavenPassword') ?: '') as String
+        }
+    }
 }
