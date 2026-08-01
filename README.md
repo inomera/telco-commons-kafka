@@ -42,7 +42,17 @@ Compatability Matrix
 
 ## With Gradle
 
-JDK 23 Support
+JDK 25 Support (gradle 9.x)
+
+```groovy
+implementation 'com.inomera.telco.commons:spring-kafka:4.1.3'
+implementation 'com.inomera.telco.commons:kafka-json:4.1.0'
+implementation 'com.inomera.telco.commons:kafka-kryo:4.1.0'
+implementation 'com.inomera.telco.commons:kafka-protobuf:4.1.0'
+implementation 'com.inomera.telco.commons:kafka-smile:4.1.0'
+```
+
+JDK 23 Support (gradle 8.x)
 
 ```groovy
 implementation 'com.inomera.telco.commons:spring-kafka:4.0.1'
