@@ -7,6 +7,9 @@ Telco Commons Kafka is a lightweight, Spring-friendly Kafka integration library 
 
 Use lightweigth Virtual Threads.. minimum resources, maximum capacity of process messages!!
 
+📈 **[PERFORMANCE.md](PERFORMANCE.md)** — measured throughput, allocation and GC report, plus
+tuning guidance for offset commit strategies and the virtual-thread concurrency cap.
+
 # Version Compatability
 
 Compatability Matrix
@@ -93,6 +96,20 @@ Try to use new versions.
 
 
 # Benchmark (OS vs Virtual Threads)
+
+> 📈 **See also: [PERFORMANCE.md](PERFORMANCE.md)** — the measured throughput, allocation and GC
+> report for 4.1.x, with a reproducible harness (`ThroughputBenchmarkTest`).
+>
+> The two benchmarks answer different questions and are not interchangeable:
+>
+> | | This section | [PERFORMANCE.md](PERFORMANCE.md) |
+> |---|---|---|
+> | Listener | 100 ms delay — **I/O-bound** | no-op — **framework overhead** |
+> | Shows | why virtual threads win on blocking work | cost of each commit strategy, dispatcher cap and GC |
+> | Lib version | 4.0.1 | 4.1.x |
+>
+> Read PERFORMANCE.md for offset-commit-strategy and `boundedExecutor` tuning; read this section
+> for the OS-versus-virtual-thread choice.
 
 ---
 
