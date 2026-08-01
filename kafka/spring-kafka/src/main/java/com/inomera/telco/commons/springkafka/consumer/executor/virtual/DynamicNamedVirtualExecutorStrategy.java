@@ -6,9 +6,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.Function;
 
@@ -29,12 +31,16 @@ import java.util.function.Function;
  */
 public class DynamicNamedVirtualExecutorStrategy implements ParameterBasedVirtualExecutorStrategy {
     private static final Logger LOG = LoggerFactory.getLogger(DynamicNamedVirtualExecutorStrategy.class);
-    private static final String DEFAULT_EXECUTOR_NAME = "DefaultExecutor";
+    private static final String DEFAULT_EXECUTOR_NAME = "DefaultVirtualExecutor";
+    private static final long SHUTDOWN_TIMEOUT_SECONDS = 15L;
 
     /**
      * Stores dynamically created named executors
      */
     private final Map<String, ExecutorService> executorMap = new ConcurrentHashMap<>();
+
+    /** Names that were explicitly configured; everything else uses the default executor. */
+    private final Set<String> configuredNames = ConcurrentHashMap.newKeySet();
 
     /**
      * Maps records to executor names
@@ -80,7 +86,24 @@ public class DynamicNamedVirtualExecutorStrategy implements ParameterBasedVirtua
      * @return The corresponding {@link ExecutorService}.
      */
     public ExecutorService getOrCreateByExecutorName(String executorName) {
+        // Only names that were explicitly configured get their own executor. Creating one for
+        // any name the mapper returns leaked an executor (and its threads) per distinct value,
+        // which is unbounded whenever the mapper keys on something like a customer id.
+        if (!configuredNames.contains(executorName)) {
+            final ExecutorService fallback = this.defaultExecutor;
+            if (fallback != null) {
+                return fallback;
+            }
+        }
         return executorMap.computeIfAbsent(executorName, this::createVirtualThreadExecutor);
+    }
+
+    /**
+     * Declares an executor name up front so records mapped to it get a dedicated executor.
+     * Anything else falls back to the default executor.
+     */
+    public void configureExecutor(String executorName) {
+        configuredNames.add(executorName);
     }
 
     /**
@@ -99,15 +122,28 @@ public class DynamicNamedVirtualExecutorStrategy implements ParameterBasedVirtua
      * @param executorName The executor name.
      */
     private void removeAndStop(String executorName) {
-        long stamp = lock.writeLock();
+        configuredNames.remove(executorName);
+        // Removed from the map first so new records fall back to the default executor while the
+        // old one drains. ExecutorService.close() blocks until termination, and doing that under
+        // the write lock stalled every other configuration change.
+        final ExecutorService removedExecutor = executorMap.remove(executorName);
+        if (removedExecutor == null) {
+            return;
+        }
+        shutdownGracefully(removedExecutor, executorName);
+    }
+
+    private static void shutdownGracefully(ExecutorService executor, String name) {
+        executor.shutdown();
         try {
-            try (ExecutorService removedExecutor = executorMap.remove(executorName)) {
-                if (removedExecutor != null) {
-                    removedExecutor.shutdown();
-                }
+            if (!executor.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                LOG.warn("Executor [{}] did not terminate within {}s; forcing shutdown.",
+                        name, SHUTDOWN_TIMEOUT_SECONDS);
+                executor.shutdownNow();
             }
-        } finally {
-            lock.unlockWrite(stamp);
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -132,11 +168,14 @@ public class DynamicNamedVirtualExecutorStrategy implements ParameterBasedVirtua
     public void stop() {
         long stamp = lock.writeLock();
         try {
-            executorMap.values().forEach(ExecutorService::shutdown);
-            if (defaultExecutor != null) {
-                defaultExecutor.shutdown();
-            }
+            // Wait for in-flight listener work instead of abandoning it.
+            executorMap.forEach((name, executor) -> shutdownGracefully(executor, name));
             executorMap.clear();
+            configuredNames.clear();
+            if (defaultExecutor != null) {
+                shutdownGracefully(defaultExecutor, DEFAULT_EXECUTOR_NAME);
+                defaultExecutor = null;
+            }
         } finally {
             lock.unlockWrite(stamp);
         }

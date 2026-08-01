@@ -22,7 +22,9 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
 
     private static final Logger LOG = LoggerFactory.getLogger(PollerThreadStateChecker.class);
 
-    private static ScheduledExecutorService executorService;
+    // Instance-scoped: a static field meant a second checker silently leaked the first one's
+    // scheduler and close() only ever shut down the most recently constructed instance.
+    private ScheduledExecutorService executorService;
 
     private final ConsumerThreadStore threadStore;
     private final PollerThreadNotifier pollerThreadNotifier;
@@ -50,8 +52,8 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
     public void check() {
         final Set<PollerThreadState> monitoringThreads = new LinkedHashSet<>();
         for (Map.Entry<Long, PollerThreadState> threadEntry : threadStore.getThreads().entrySet()) {
-            final String currentJvmState = getJvmState(threadEntry.getKey());
             final PollerThreadState pollerThreadState = threadEntry.getValue();
+            final String currentJvmState = getJvmState(pollerThreadState);
             pollerThreadState.setOldJvmState(pollerThreadState.getCurrentJvmState());
             pollerThreadState.setCurrentJvmState(currentJvmState);
             monitoringThreads.add(pollerThreadState);
@@ -82,13 +84,20 @@ public class PollerThreadStateChecker implements ThreadStateChecker {
         }
     }
 
-    private String getJvmState(Long threadId) {
-        final Set<Thread> jvmThreads = Thread.getAllStackTraces().keySet();
-        return jvmThreads.stream()
-                .filter(jvmThread -> jvmThread.getId() == threadId)
-                .findFirst()
-                .map(jvmThread -> jvmThread.getState().name())
-                .orElse(StringUtils.EMPTY);
+    /**
+     * Reads the thread's state from the stored reference.
+     *
+     * <p>This used to call {@code Thread.getAllStackTraces()} once per monitored thread, which
+     * captures a full stack dump of every thread in the JVM — O(threads&sup2;) work on a timer —
+     * and never reports virtual threads, so a virtual poller would always look dead and be
+     * restarted forever.
+     */
+    private String getJvmState(PollerThreadState state) {
+        final Thread thread = state.getThread();
+        if (thread == null || !thread.isAlive()) {
+            return StringUtils.EMPTY;
+        }
+        return thread.getState().name();
     }
 
     @Override

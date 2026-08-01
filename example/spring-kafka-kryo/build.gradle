@@ -1,24 +1,13 @@
 plugins {
-    id 'org.springframework.boot' version '3.4.2'
-    id 'io.spring.dependency-management' version '1.1.7'
     id 'java'
-}
-
-apply plugin: 'io.spring.dependency-management'
-apply plugin: 'org.springframework.boot'
-
-ext {
-    set('springCloudVersion', "2024.0.0")
-    set('resilience4jVersion', '2.3.0')
+    id 'org.springframework.boot' version '4.0.7'
+    id 'io.spring.dependency-management' version '1.1.7'
 }
 
 repositories {
     mavenLocal()
     mavenCentral()
 }
-
-sourceCompatibility = JavaVersion.VERSION_23
-targetCompatibility = JavaVersion.VERSION_23
 
 configurations {
     compileOnly {
@@ -27,16 +16,17 @@ configurations {
 }
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation "com.esotericsoftware:kryo:5.6.2"
+    implementation "org.springframework.boot:spring-boot-starter-web"
+    implementation "com.esotericsoftware:kryo:${versions.kryo}"
     implementation "org.apache.kafka:kafka-clients:${versions.kafka_clients}"
-    implementation "com.google.guava:guava:33.4.0-jre"
+    implementation "com.google.guava:guava:${versions.guava}"
+    implementation "com.inomera.telco.commons:lang:${versions.lang}"
 
     implementation project(":spring-kafka")
     implementation project(":kafka-kryo")
 
-    implementation("org.projectlombok:lombok:${versions.lombok}")
-    annotationProcessor("org.projectlombok:lombok:${versions.lombok}")
+    compileOnly "org.projectlombok:lombok:${versions.lombok}"
+    annotationProcessor "org.projectlombok:lombok:${versions.lombok}"
 
     testImplementation "org.junit.jupiter:junit-jupiter-api:${versions.jupiter}"
     testImplementation "org.junit.jupiter:junit-jupiter-params:${versions.jupiter}"
@@ -44,12 +34,4 @@ dependencies {
     testImplementation "org.mockito:mockito-core:${versions.mockito_core}"
     testImplementation "org.mockito:mockito-junit-jupiter:${versions.mockito_jupiter}"
     testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-
-    developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
-}
-
-dependencyManagement {
-    imports {
-        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
-    }
 }

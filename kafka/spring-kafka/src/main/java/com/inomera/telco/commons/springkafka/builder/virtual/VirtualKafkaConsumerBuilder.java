@@ -9,6 +9,8 @@ import com.inomera.telco.commons.springkafka.consumer.invoker.ListenerMethodRegi
 import com.inomera.telco.commons.springkafka.consumer.poller.BulkConsumerPoller;
 import com.inomera.telco.commons.springkafka.consumer.poller.ConsumerPoller;
 import com.inomera.telco.commons.springkafka.consumer.poller.DefaultConsumerPoller;
+import com.inomera.telco.commons.springkafka.consumer.retry.DefaultBulkRecordRetryer;
+import com.inomera.telco.commons.springkafka.consumer.retry.DefaultRecordRetryer;
 import com.inomera.telco.commons.springkafka.consumer.retry.DefaultInMemoryBulkRecordRetryConsumer;
 import com.inomera.telco.commons.springkafka.consumer.retry.DefaultInMemoryRecordRetryConsumer;
 import com.inomera.telco.commons.springkafka.consumer.retry.InMemoryBulkRecordRetryConsumer;
@@ -171,6 +173,7 @@ public class VirtualKafkaConsumerBuilder {
         consumerPoller.setConsumerThreadFactory(getWrappedThreadFactory(consumerPoller));
         final ConsumerInvoker invoker = virtualConsumerInvokerBuilder.build(consumerPoller, groupId);
         this.inMemoryRecordConsumer = this.inMemoryRecordConsumer == null ? new DefaultInMemoryRecordRetryConsumer(invoker::invoke) : this.inMemoryRecordConsumer;
+        consumerPoller.setRecordRetryer(new DefaultRecordRetryer(this.inMemoryRecordConsumer));
         return new SmartKafkaMessageConsumer(consumerPoller, invoker, this.inMemoryRecordConsumer);
     }
 
@@ -188,6 +191,7 @@ public class VirtualKafkaConsumerBuilder {
         bulkConsumerPoller.setConsumerThreadFactory(getWrappedThreadFactory(bulkConsumerPoller));
         final BulkConsumerInvoker bulkConsumerInvoker = virtualConsumerInvokerBuilder.buildBulk(bulkConsumerPoller, groupId);
         this.inMemoryBulkRecordRetryConsumer = this.inMemoryBulkRecordRetryConsumer == null ? new DefaultInMemoryBulkRecordRetryConsumer(bulkConsumerInvoker::invoke) : this.inMemoryBulkRecordRetryConsumer;
+        bulkConsumerPoller.setBulkRecordRetryer(new DefaultBulkRecordRetryer(this.inMemoryBulkRecordRetryConsumer));
         return new BulkSmartKafkaMessageConsumer(bulkConsumerPoller, bulkConsumerInvoker, this.inMemoryBulkRecordRetryConsumer);
     }
 }

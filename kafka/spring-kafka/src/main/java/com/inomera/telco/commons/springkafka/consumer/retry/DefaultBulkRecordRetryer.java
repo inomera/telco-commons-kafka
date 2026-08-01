@@ -2,46 +2,63 @@ package com.inomera.telco.commons.springkafka.consumer.retry;
 
 import com.inomera.telco.commons.springkafka.annotation.KafkaListener;
 import com.inomera.telco.commons.springkafka.consumer.invoker.BulkInvokerResult;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.RetriableCommitFailedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Set;
-
-import static com.inomera.telco.commons.springkafka.consumer.retry.DefaultInMemoryBulkRecordRetryConsumer.bulkRetryQueue;
-
-
+/**
+ * Bulk counterpart of {@link DefaultRecordRetryer}. See that class for why
+ * {@code RETRY_FROM_BROKER} no longer throws out of the poll loop.
+ *
+ * @author Turgay Can
+ */
 public class DefaultBulkRecordRetryer implements BulkRecordRetryer {
-
     private static final Logger LOG = LoggerFactory.getLogger(DefaultBulkRecordRetryer.class);
+
+    private final InMemoryBulkRecordRetryConsumer inMemoryBulkRetryConsumer;
+
+    public DefaultBulkRecordRetryer() {
+        this(null);
+    }
+
+    public DefaultBulkRecordRetryer(InMemoryBulkRecordRetryConsumer inMemoryBulkRetryConsumer) {
+        this.inMemoryBulkRetryConsumer = inMemoryBulkRetryConsumer;
+    }
 
     @Override
     public void checkAndRetry(BulkInvokerResult result) {
+        checkAndDecide(result);
+    }
+
+    @Override
+    public boolean checkAndDecide(BulkInvokerResult result) {
         final KafkaListener kafkaListener = result.getKafkaListener();
-        if (kafkaListener == null) {
-            return;
+        if (kafkaListener == null || kafkaListener.retry() == KafkaListener.RETRY.NONE) {
+            return true;
         }
 
-        if (kafkaListener.retry() == KafkaListener.RETRY.NONE) {
-            return;
-        }
+        final int batchSize = result.getRecords().size();
 
-        final Set<ConsumerRecord<String, ?>> records = result.getRecords();
-        final ConsumerRecord<String, ?> record = records.iterator().next();
-        final String topic = record.topic();
-        if (kafkaListener.retry() == KafkaListener.RETRY.RETRY_FROM_BROKER) {
-            LOG.warn("before ack/commit to broker, message : {} retrying for the topic : {}, if the consumer re-start or re-subscribe another consumer in consumer group, try to process", records, topic);
-            throw new RetriableCommitFailedException("Retry message offset " + record.offset() + " for topic " + topic);
-        }
-        if (kafkaListener.retry() == KafkaListener.RETRY.RETRY_IN_MEMORY_TASK) {
-            final BulkRetryContext retryContext = new BulkRetryContext();
-            retryContext.setCount(0);
-            retryContext.setBackoffTime(kafkaListener.retryBackoffTime());
-            retryContext.setMaxCount(kafkaListener.retryCount());
-            retryContext.setRetry(result);
-            boolean offered = bulkRetryQueue.offer(retryContext);
-            LOG.debug("offered : {} for retry -> {}", offered, retryContext);
-        }
+        return switch (kafkaListener.retry()) {
+            case RETRY_FROM_BROKER -> {
+                LOG.warn("Holding offsets back for a batch of {} records; the broker will re-deliver them.",
+                        batchSize);
+                yield false;
+            }
+            case RETRY_IN_MEMORY_TASK -> {
+                if (inMemoryBulkRetryConsumer == null) {
+                    LOG.warn("RETRY_IN_MEMORY_TASK requested for a batch of {} records but no retry consumer "
+                            + "is wired; holding the offsets back instead.", batchSize);
+                    yield false;
+                }
+                final RetryPolicy policy = RetryPolicy.fromListener(
+                        kafkaListener.retryCount(), kafkaListener.retryBackoffTime());
+                if (inMemoryBulkRetryConsumer.offer(result, policy)) {
+                    yield true;
+                }
+                LOG.warn("In-memory retry refused for a batch of {} records; holding the offsets back.", batchSize);
+                yield false;
+            }
+            default -> true;
+        };
     }
 }

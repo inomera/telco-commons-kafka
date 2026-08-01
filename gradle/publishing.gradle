@@ -1,14 +1,124 @@
+// Shared Maven Central publishing setup.
+//
+// Each module declares `pubName`, `pubDescription` and `pubRepo` in its `ext`
+// block before applying this script; everything else (sources/javadoc jars,
+// POM metadata, signing, repository) is identical and lives here.
+//
+// Rewritten for Gradle 9: the old setup relied on the `archives` configuration,
+// the `signArchives` task and the `model {}` software model, all of which were
+// removed in Gradle 9. `signing.sign(publication)` now covers the POM and every
+// artifact, so the manual `.asc` wiring is gone too.
+
 apply plugin: 'maven-publish'
+apply plugin: 'signing'
 
+def pubName = project.ext.pubName
+def pubDescription = project.ext.pubDescription
+def pubRepo = project.ext.pubRepo
 
-tasks.register('javadocJar', Jar) {
-    dependsOn javadoc
-    archiveClassifier.set("javadoc")
-    from javadoc.destinationDir
+def isSnapshot = Boolean.parseBoolean(System.getenv('SNAPSHOT_RELEASE'))
+def snapshotUrl = project.findProperty('mavenSnapshotUrl')
+        ?: 'https://central.sonatype.com/content/repositories/snapshots/'
+def releaseUrl = project.findProperty('mavenReleaseUrl')
+        ?: 'https://central.sonatype.com/service/local/staging/deploy/maven2/'
+
+java {
+    withSourcesJar()
+    withJavadocJar()
 }
 
-tasks.register('sourceJar', Jar) {
-    duplicatesStrategy = 'include'
-    archiveClassifier.set("sources")
-    from sourceSets.main.allJava
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+
+            groupId = project.group
+            artifactId = project.name
+            version = project.version
+
+            pom {
+                name = pubName
+                description = pubDescription
+                url = "https://github.com/inomera/${pubRepo}"
+
+                organization {
+                    name = 'Inomera Research'
+                    url = 'https://inomera.com/'
+                }
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'http://www.opensource.org/licenses/mit-license.php'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'sedran'
+                        name = 'Serdar Kuzucu'
+                        organization = 'Inomera'
+                        organizationUrl = 'https://github.com/sedran'
+                    }
+                    developer {
+                        id = 'turgaycan'
+                        name = 'Turgay Can'
+                        organization = 'Inomera'
+                        organizationUrl = 'https://github.com/turgaycan'
+                    }
+                    developer {
+                        id = 'FatihBozik'
+                        name = 'Fatih Bozik'
+                        organization = 'Inomera'
+                        organizationUrl = 'https://github.com/FatihBozik'
+                    }
+                    developer {
+                        id = 'kenankartal'
+                        name = 'Kenan Kartal'
+                        organization = 'Inomera'
+                        organizationUrl = 'https://github.com/kenankartal'
+                    }
+                    developer {
+                        id = 'bkandil'
+                        name = 'Burak Kandil'
+                        organization = 'Inomera'
+                        organizationUrl = 'https://github.com/bkandil'
+                    }
+                }
+                scm {
+                    url = "https://github.com/inomera/${pubRepo}"
+                    connection = "scm:git:https://github.com/inomera/${pubRepo}.git"
+                    developerConnection = "scm:git:https://github.com/inomera/${pubRepo}.git"
+                }
+                issueManagement {
+                    system = 'GitHub'
+                    url = "https://github.com/inomera/${pubRepo}/issues"
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = 'mavenCentral'
+            url = isSnapshot ? snapshotUrl : releaseUrl
+            credentials {
+                username = (project.findProperty('mavenUsername') ?: '') as String
+                password = (project.findProperty('mavenPassword') ?: '') as String
+            }
+        }
+    }
+}
+
+signing {
+    // Only sign real releases going to the remote repository. A plain `./gradlew build` and
+    // `publishToMavenLocal` must not require a GPG key to be configured.
+    required {
+        !isSnapshot && gradle.taskGraph.allTasks.any {
+            it.name.startsWith('publish') && it.name.contains('MavenRepository')
+        }
+    }
+    sign publishing.publications.mavenJava
+}
+
+tasks.withType(GenerateModuleMetadata).configureEach {
+    enabled = false
 }

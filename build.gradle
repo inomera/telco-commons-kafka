@@ -3,20 +3,61 @@ subprojects {
         mavenLocal()
         mavenCentral()
     }
+
+    // Java toolchain and compiler options are configured once here instead of
+    // being repeated in every module build script.
+    plugins.withId('java') {
+        java {
+            toolchain {
+                languageVersion = JavaLanguageVersion.of(rootProject.versions.java as int)
+            }
+        }
+
+        tasks.withType(JavaCompile).configureEach {
+            options.encoding = 'UTF-8'
+            options.compilerArgs << '-parameters'
+        }
+
+        // Surface deprecations in our own sources only. Checked-in generated protobuf test
+        // fixtures use APIs that protobuf 4.x deprecated and would drown out the signal.
+        tasks.named('compileJava') {
+            options.compilerArgs << '-Xlint:deprecation'
+        }
+
+        tasks.withType(Javadoc).configureEach {
+            options.encoding = 'UTF-8'
+            // Generated protobuf sources and Lombok output trip the doclint checks.
+            options.addStringOption('Xdoclint:none', '-quiet')
+        }
+    }
 }
 
 ext {
     versions = [
+            //toolchain
+            java           : '25',
             //main libs
-            kafka_clients  : '4.0.0',
+            kafka_clients  : '4.1.2',
             lang           : '3.1.0',
+            // Matches the spring-framework.version managed by Spring Boot 4.0.7.
+            spring         : '7.0.8',
+            spring_boot    : '4.0.7',
+            // Spring Framework 7 moved its nullability annotations to JSpecify.
+            jspecify       : '1.0.0',
+            //serialization
+            jackson        : '2.19.0',
+            protobuf       : '4.32.1',
+            kryo           : '5.6.2',
+            //example-only
+            guava          : '33.4.0-jre',
             //ext libs
             commons_lang3  : '3.17.0',
-            lombok         : '1.18.36',
+            lombok         : '1.18.42',
             jupiter        : '5.11.4',
+            junit_platform : '1.11.4',
             mockito_core   : '5.15.2',
             mockito_jupiter: '5.15.2',
             hamcrest       : '3.0',
-            slf4j          : '2.0.16',
+            slf4j          : '2.0.17',
     ]
 }

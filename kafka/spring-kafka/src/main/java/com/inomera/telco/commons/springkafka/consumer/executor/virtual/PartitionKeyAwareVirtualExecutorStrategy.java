@@ -68,10 +68,16 @@ public class PartitionKeyAwareVirtualExecutorStrategy implements ParameterBasedV
      */
     @Override
     public ExecutorService get(ConsumerRecord<String, ?> record) {
-        int partitionKey = getPartitionKey(record);
-        final int partitionVirtualIndex = Math.abs(partitionKey) % partitionPoolSize;
+        final int partitionKey = getPartitionKey(record);
+        // floorMod, not Math.abs: Math.abs(Integer.MIN_VALUE) is negative, which produced a
+        // negative index outside the pre-started range and leaked a new executor per hash.
+        final int partitionVirtualIndex = Math.floorMod(partitionKey, partitionPoolSize);
         return partitionExecutors.computeIfAbsent(partitionVirtualIndex, key ->
-                Executors.newSingleThreadExecutor(this.threadFactory));
+                Executors.newSingleThreadExecutor(resolveThreadFactory()));
+    }
+
+    private ThreadFactory resolveThreadFactory() {
+        return this.threadFactory != null ? this.threadFactory : Thread.ofVirtual().factory();
     }
 
     /**
@@ -81,10 +87,11 @@ public class PartitionKeyAwareVirtualExecutorStrategy implements ParameterBasedV
     @Override
     public void start() {
         for (int partitionIndex = 0; partitionIndex < partitionPoolSize; partitionIndex++) {
-            partitionExecutors.put(partitionIndex, Executors.newSingleThreadExecutor(Thread.ofVirtual().factory()));
-            LOG.info("PartitionKeyAwareVirtualExecutorStrategy started for partition {}", partitionIndex);
+            // Use the injected factory here too; start() used to hard-code a virtual factory
+            // while get() used the injected one, so thread naming depended on which ran first.
+            partitionExecutors.put(partitionIndex, Executors.newSingleThreadExecutor(resolveThreadFactory()));
         }
-        LOG.info("PartitionKeyAwareVirtualExecutorStrategy started");
+        LOG.info("PartitionKeyAwareVirtualExecutorStrategy started with {} partition executors", partitionPoolSize);
     }
 
     /**
@@ -111,11 +118,11 @@ public class PartitionKeyAwareVirtualExecutorStrategy implements ParameterBasedV
      * Determines the partition key for a given Kafka record.
      * Ensures that records with the same partition key are processed in order by the same thread.
      *
+     * <p>Override this to derive the key from something other than
+     * {@code PartitionKeyAware} / the record key / the payload hash.
+     *
      * @param record The Kafka {@link ConsumerRecord} to extract the partition key from.
-     * @param record The Kafka consumer record.
      * @return A hash-based partition key used to select the appropriate executor.
-     * <p>
-     * If you want to customize your partition key, you should override the method
      */
     protected int getPartitionKey(ConsumerRecord<String, ?> record) {
         final Object message = record.value();
