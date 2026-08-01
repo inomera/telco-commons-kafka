@@ -53,34 +53,10 @@ publishing {
                 }
                 developers {
                     developer {
-                        id = 'sedran'
-                        name = 'Serdar Kuzucu'
-                        organization = 'Inomera'
-                        organizationUrl = 'https://github.com/sedran'
-                    }
-                    developer {
                         id = 'turgaycan'
                         name = 'Turgay Can'
                         organization = 'Inomera'
                         organizationUrl = 'https://github.com/turgaycan'
-                    }
-                    developer {
-                        id = 'FatihBozik'
-                        name = 'Fatih Bozik'
-                        organization = 'Inomera'
-                        organizationUrl = 'https://github.com/FatihBozik'
-                    }
-                    developer {
-                        id = 'kenankartal'
-                        name = 'Kenan Kartal'
-                        organization = 'Inomera'
-                        organizationUrl = 'https://github.com/kenankartal'
-                    }
-                    developer {
-                        id = 'bkandil'
-                        name = 'Burak Kandil'
-                        organization = 'Inomera'
-                        organizationUrl = 'https://github.com/bkandil'
                     }
                 }
                 scm {

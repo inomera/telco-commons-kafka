@@ -121,6 +121,26 @@ class ThroughputBenchmarkTest {
         }
     }
 
+    /** Simulates a blocking downstream call, which is where virtual threads earn their keep. */
+    static final class IoBoundListener {
+        final Counter counter = new Counter();
+        private final long delayMillis;
+
+        IoBoundListener(long delayMillis) {
+            this.delayMillis = delayMillis;
+        }
+
+        @KafkaListener(groupId = "unused", topics = "unused")
+        void onMessage(String message) {
+            try {
+                Thread.sleep(delayMillis);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            counter.hit(1);
+        }
+    }
+
     static final class BulkListener {
         final Counter counter = new Counter();
 
@@ -263,6 +283,82 @@ class ThroughputBenchmarkTest {
         }
     }
 
+    /** IO-bound listener on a fixed OS thread pool. */
+    private static void runIoOsCase(String caseName, int records, long delayMillis, int threads) {
+        final String topic = "bench-io-os-" + System.nanoTime();
+        final String group = topic + "-group";
+        E2eSupport.createTopic(topic, PARTITIONS);
+        E2eSupport.publish(topic, "m-", records);
+
+        final IoBoundListener bean = new IoBoundListener(delayMillis);
+        final ListenerMethodRegistry registry = new ListenerMethodRegistry();
+        E2eSupport.registerListener(registry, group, topic, String.class, bean, "onMessage");
+
+        final KafkaMessageConsumer consumer = KafkaConsumerBuilder.builder(registry)
+                .properties(E2eSupport.consumerProperties())
+                .groupId(group)
+                .topics(topic)
+                .offsetCommitStrategy(OffsetCommitStrategy.AT_LEAST_ONCE_BULK)
+                .valueDeserializer(new E2eSupport.StringPayloadDeserializer())
+                .autoPartitionPause(true)
+                .invoker().unordered().singleExecutor()
+                .coreThreadCount(threads).maxThreadCount(threads).keepAliveTime(1)
+                .keepAliveTimeUnit(TimeUnit.MINUTES).queueCapacity(10_000)
+                .and().and().and()
+                .build();
+
+        final GcProbe gcStart = GcProbe.capture();
+        final long startedAt = System.nanoTime();
+        consumer.start();
+        try {
+            E2eSupport.await(caseName, TIMEOUT, () -> bean.counter.count.get() >= records);
+            final long e2eMillis = (System.nanoTime() - startedAt) / 1_000_000L;
+            record(caseName, "OS x" + threads, records, bean.counter.elapsedMillis(), e2eMillis,
+                    GcProbe.capture().since(gcStart));
+        } finally {
+            consumer.stop();
+            E2eSupport.deleteTopic(topic);
+        }
+    }
+
+    /** IO-bound listener on virtual threads; {@code cap <= 0} means unbounded. */
+    private static void runIoVirtualCase(String caseName, int records, long delayMillis, int cap) {
+        final String topic = "bench-io-virtual-" + System.nanoTime();
+        final String group = topic + "-group";
+        E2eSupport.createTopic(topic, PARTITIONS);
+        E2eSupport.publish(topic, "m-", records);
+
+        final IoBoundListener bean = new IoBoundListener(delayMillis);
+        final ListenerMethodRegistry registry = new ListenerMethodRegistry();
+        E2eSupport.registerListener(registry, group, topic, String.class, bean, "onMessage");
+
+        final UnorderedVirtualProcessingStrategyBuilder unordered = VirtualKafkaConsumerBuilder.builder(registry)
+                .properties(E2eSupport.consumerProperties())
+                .groupId(group)
+                .topics(topic)
+                .offsetCommitStrategy(OffsetCommitStrategy.AT_LEAST_ONCE_BULK)
+                .valueDeserializer(new E2eSupport.StringPayloadDeserializer())
+                .autoPartitionPause(true)
+                .invoker()
+                .unordered();
+        final VirtualConsumerInvokerBuilder invoker =
+                cap > 0 ? unordered.boundedExecutor(cap) : unordered.singleExecutor().and().and();
+        final KafkaMessageConsumer consumer = invoker.and().build();
+
+        final GcProbe gcStart = GcProbe.capture();
+        final long startedAt = System.nanoTime();
+        consumer.start();
+        try {
+            E2eSupport.await(caseName, TIMEOUT, () -> bean.counter.count.get() >= records);
+            final long e2eMillis = (System.nanoTime() - startedAt) / 1_000_000L;
+            record(caseName, cap > 0 ? "virtual cap=" + cap : "virtual \u221e", records,
+                    bean.counter.elapsedMillis(), e2eMillis, GcProbe.capture().since(gcStart));
+        } finally {
+            consumer.stop();
+            E2eSupport.deleteTopic(topic);
+        }
+    }
+
     // ----------------------------------------------------------------- cases
 
     @Test
@@ -298,5 +394,22 @@ class ThroughputBenchmarkTest {
                 OffsetCommitStrategy.AT_LEAST_ONCE_BULK, atLeastOnce, 8);
         runVirtualCase("virtual / AT_LEAST_ONCE_SINGLE / cap=64",
                 OffsetCommitStrategy.AT_LEAST_ONCE_SINGLE, atLeastOnce, 64);
+    }
+
+    @Test
+    @DisplayName("IO-bound matrix: where virtual threads actually win")
+    void ioBoundMatrix() {
+        // Every listener invocation blocks for 20ms, standing in for a database or HTTP call.
+        // This is the shape the no-op matrix above deliberately does not model.
+        final int records = 5_000;
+        final long delayMillis = 20L;
+
+        runIoOsCase("io 20ms / OS pool 16", records, delayMillis, 16);
+        runIoOsCase("io 20ms / OS pool 64", records, delayMillis, 64);
+        runIoOsCase("io 20ms / OS pool 256", records, delayMillis, 256);
+        runIoVirtualCase("io 20ms / virtual cap=64", records, delayMillis, 64);
+        runIoVirtualCase("io 20ms / virtual cap=256", records, delayMillis, 256);
+        runIoVirtualCase("io 20ms / virtual cap=1024", records, delayMillis, 1024);
+        runIoVirtualCase("io 20ms / virtual unbounded", records, delayMillis, 0);
     }
 }
