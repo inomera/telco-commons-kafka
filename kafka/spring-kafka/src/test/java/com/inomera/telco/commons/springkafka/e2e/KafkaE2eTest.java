@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -289,6 +290,94 @@ class KafkaE2eTest {
             first.stop();
             second.stop();
             E2eSupport.deleteTopic(topic);
+        }
+    }
+
+    @Test
+    @DisplayName("KIP-848: serverSideRebalance() drops classic-only settings instead of failing")
+    void serverSideRebalanceSanitisesClassicSettings() {
+        final String topic = "e2e-kip848-cfg-" + System.nanoTime();
+        final String group = "e2e-kip848-cfg-group";
+        E2eSupport.createTopic(topic, 3);
+
+        // A property file carried over from the classic protocol. The client rejects all three of
+        // these outright with a ConfigException once group.protocol=consumer.
+        final Properties classic = E2eSupport.consumerProperties();
+        classic.put("session.timeout.ms", "30000");
+        classic.put("heartbeat.interval.ms", "10000");
+        classic.put("partition.assignment.strategy",
+                "org.apache.kafka.clients.consumer.RangeAssignor");
+
+        final Collector bean = new Collector();
+        final ListenerMethodRegistry registry = new ListenerMethodRegistry();
+        E2eSupport.registerListener(registry, group, topic, String.class, bean, "onMessage");
+
+        final KafkaMessageConsumer consumer = KafkaConsumerBuilder.builder(registry)
+                .properties(classic)
+                .serverSideRebalance("uniform")
+                .groupId(group)
+                .topics(topic)
+                .offsetCommitStrategy(OffsetCommitStrategy.AT_LEAST_ONCE_SINGLE)
+                .valueDeserializer(new E2eSupport.StringPayloadDeserializer())
+                .autoPartitionPause(true)
+                .invoker().unordered().singleExecutor()
+                .coreThreadCount(2).maxThreadCount(4).keepAliveTime(1)
+                .keepAliveTimeUnit(TimeUnit.MINUTES).queueCapacity(200)
+                .and().and().and()
+                .build();
+
+        consumer.start();
+        try {
+            E2eSupport.publish(topic, "server-side-", 20);
+            E2eSupport.await("records under broker-side assignment", TIMEOUT,
+                    () -> bean.received.size() >= 20);
+        } finally {
+            consumer.stop();
+            E2eSupport.deleteTopic(topic);
+        }
+    }
+
+    @Test
+    @DisplayName("KIP-848: pattern subscription is resolved by the broker")
+    void serverSideRebalanceWithPatternSubscription() {
+        final long stamp = System.nanoTime();
+        final String topicA = "e2e-kip848-pat-a-" + stamp;
+        final String topicB = "e2e-kip848-pat-b-" + stamp;
+        final String group = "e2e-kip848-pat-group";
+        E2eSupport.createTopic(topicA, 3);
+        E2eSupport.createTopic(topicB, 3);
+
+        final Collector bean = new Collector();
+        final ListenerMethodRegistry registry = new ListenerMethodRegistry();
+        // Listeners are registered per topic even when the subscription is a pattern.
+        E2eSupport.registerListener(registry, group, topicA, String.class, bean, "onMessage");
+        E2eSupport.registerListener(registry, group, topicB, String.class, bean, "onMessage");
+
+        final KafkaMessageConsumer consumer = KafkaConsumerBuilder.builder(registry)
+                .properties(E2eSupport.consumerProperties())
+                .serverSideRebalance("uniform")
+                .groupId(group)
+                .topicPattern(Pattern.compile("e2e-kip848-pat-[ab]-" + stamp))
+                .offsetCommitStrategy(OffsetCommitStrategy.AT_LEAST_ONCE_SINGLE)
+                .valueDeserializer(new E2eSupport.StringPayloadDeserializer())
+                .autoPartitionPause(true)
+                .invoker().unordered().singleExecutor()
+                .coreThreadCount(2).maxThreadCount(4).keepAliveTime(1)
+                .keepAliveTimeUnit(TimeUnit.MINUTES).queueCapacity(200)
+                .and().and().and()
+                .build();
+
+        consumer.start();
+        try {
+            E2eSupport.publish(topicA, "pat-a-", 10);
+            E2eSupport.publish(topicB, "pat-b-", 10);
+            E2eSupport.await("both pattern-matched topics", TIMEOUT, () ->
+                    bean.received.stream().anyMatch(m -> m.startsWith("pat-a-"))
+                            && bean.received.stream().anyMatch(m -> m.startsWith("pat-b-")));
+        } finally {
+            consumer.stop();
+            E2eSupport.deleteTopic(topicA);
+            E2eSupport.deleteTopic(topicB);
         }
     }
 

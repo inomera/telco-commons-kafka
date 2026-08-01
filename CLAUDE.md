@@ -8,7 +8,7 @@ Several release lines are maintained in parallel and the JDK / Spring / `kafka-c
 
 | Branch | `spring-kafka` | Java | Spring | kafka-clients | Gradle |
 |---|---|---|---|---|---|
-| `v4.x.x` (current) | **4.1.2** | **25** | **7.0.8** (Boot 4.0.7) | **4.1.2** | **9.2.1** |
+| `v4.x.x` (current) | **4.1.3** | **25** | **7.0.8** (Boot 4.0.7) | **4.1.2** | **9.2.1** |
 | `master` | 4.0.0 | 23 | 6.2.1 | 4.0.0 | 8.12.1 |
 | `v3.x.x` | 3.0.7 | 17 | 6.0.13 | 3.0.2 | — |
 | `v2.3.x` | 2.3.8 | 8/11 | 5.3.x | 3.0.2 | 7.4 |
@@ -19,7 +19,7 @@ options are configured once in the root `subprojects` block, not per module.
 
 `kafka_clients` and the other shared versions live in the **root `build.gradle` `versions` map**, not per module. README.md carries the user-facing compatibility matrix (also lists Kafka *server* ≥ 4.0.0 for this line).
 
-Each publishable module has its own `VERSION` file and versions independently — `kafka/spring-kafka` is 4.1.2 while the serializer modules sit at 4.1.0, because only the library has changed since. Bump the patch version of the modules a change actually touches; do not move them in lockstep. Git tags are `<module>/<version>` (e.g. `spring-kafka/4.1.2`).
+Each publishable module has its own `VERSION` file and versions independently — `kafka/spring-kafka` is 4.1.3 while the serializer modules sit at 4.1.0, because only the library has changed since. Bump the patch version of the modules a change actually touches; do not move them in lockstep. Git tags are `<module>/<version>` (e.g. `spring-kafka/4.1.3`).
 
 ## Build & test
 
@@ -33,6 +33,10 @@ Each publishable module has its own `VERSION` file and versions independently �
 ./gradlew build -PwithCoverage      # coverage is opt-in, see below
 ./gradlew :kafka-json:jacocoTestReport -PwithCoverage
 ```
+
+`PERFORMANCE.md` holds the measured throughput/allocation/GC report and how to reproduce it
+(`ThroughputBenchmarkTest`, opt-in via `-Pbenchmark=true`, collector sweeps via
+`-PbenchmarkJvmArgs`). Read its caveats before quoting any number from it.
 
 Coverage is behind `-PwithCoverage`: the JaCoCo agent attaches to every `Test` task as soon as
 the plugin is applied, which would make it a hard dependency of a plain `./gradlew build`. The
@@ -166,7 +170,8 @@ Both stacks use the **same pollers**, and the poller thread must stay an **OS (p
 - **`KafkaConsumer` is only thread-safe for `wakeup()`.** Everything else (`poll`, `pause`, `resume`, `commitSync`, `seek`) must run on the poller thread. `ConsumerPoller.pause(TopicPartition)` is callable from any thread because it enqueues a command onto `AbstractConsumerPoller`'s command queue and wakes the loop; the loop drains commands at the top of each iteration. **Never add a code path that touches the consumer directly from another thread** — add a command instead.
 - Both pollers extend `AbstractConsumerPoller<R>`, which owns the lifecycle, the command queue, offset accounting and rebalance handling. Subclasses only implement `dispatch`, `highestOffset`, `onResultCompleted` and `assertReadyToStart`. `BulkConsumerPoller` used to subclass `DefaultConsumerPoller` while shadowing seven of its fields, which is why fixes kept applying to only one of them.
 - `onResultCompleted` returns a boolean: `false` withholds that offset **and everything after it on the same partition**. This is how retry-from-broker and a refused retry avoid losing records.
-- Offsets: at-most-once still commits synchronously before dispatch, because the guarantee depends on it. At-least-once accumulates offsets and flushes one `commitAsync` per poll cycle. `AT_MOST_ONCE_SINGLE` remains a synchronous round-trip per record — README's benchmark measures ~85 TPS for it versus ~10K TPS for the `_BULK` variants, so prefer `_BULK` unless per-record commit is a hard requirement.
+- Offsets: at-most-once still commits synchronously before dispatch, because the guarantee depends on it. At-least-once accumulates offsets and flushes one `commitAsync` per poll cycle. `AT_MOST_ONCE_SINGLE` remains a synchronous round-trip per record — measured at ~116 TPS versus ~10K for the `_BULK` variants (`PERFORMANCE.md`), so prefer `_BULK` unless per-record commit is a hard requirement.
+- **Broker-side rebalancing (KIP-848)** is opt-in via `builder.serverSideRebalance([assignor])`, which sets `group.protocol=consumer` and drops the three settings the client rejects alongside it — `session.timeout.ms`, `heartbeat.interval.ms`, `partition.assignment.strategy` — with a warning, because those keys are common in existing property files and otherwise fail consumer construction with a `ConfigException`. Under that protocol assignment is always incremental, which is exactly what the `onPartitionsAssigned` / `onPartitionsLost` handling in `AbstractConsumerPoller` is written for. Pattern subscriptions work: the broker resolves the regex. See `GroupProtocol`.
 - `autoPartitionPause(true)` is the coarse backpressure: a partition stays paused while its records are in flight. On the virtual path a thread-per-task executor never rejects, so that was historically the *only* brake. Use `.boundedExecutor(maxConcurrency)` (or `BoundedVirtualExecutorStrategy`) to cap concurrent invocations; exceeding the cap surfaces as `RejectedExecutionException` and routes through the normal rejection path.
 - **Failure signalling is implicit.** `ListenerMethod.invoke` returns the `@KafkaListener` annotation *only when the listener threw* (`InvocationTargetException`) and `null` on success — so `InvokerResult.getKafkaListener() != null` means "this record failed", and that is what drives the retry decision in `DefaultRecordRetryer`. All other exceptions are logged and swallowed.
 - `MethodInvoker` resolves listeners via `ListenerMethodRegistry.resolveListenerMethods`, which memoizes `(groupId, topic, messageType)` and is invalidated on registration. It dispatches with an explicit loop; do not go back to `peek()` + `count()`, which only invoked listeners by accident of a `filter` sitting in front of the terminal op.

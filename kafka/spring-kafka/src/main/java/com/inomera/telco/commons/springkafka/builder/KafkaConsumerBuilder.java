@@ -132,6 +132,25 @@ public class KafkaConsumerBuilder {
         return consumerInvokerBuilder;
     }
 
+    /**
+     * Delegates rebalancing to the broker via the KIP-848 group protocol. See
+     * {@link com.inomera.telco.commons.springkafka.consumer.GroupProtocol} for what changes and
+     * which classic-protocol settings are dropped.
+     */
+    public KafkaConsumerBuilder serverSideRebalance() {
+        return serverSideRebalance(null);
+    }
+
+    /**
+     * Delegates rebalancing to the broker, asking for a specific server-side assignor.
+     *
+     * @param remoteAssignor {@code uniform} or {@code range}; {@code null} leaves the broker default
+     */
+    public KafkaConsumerBuilder serverSideRebalance(String remoteAssignor) {
+        GroupProtocol.enable(this.properties, remoteAssignor);
+        return this;
+    }
+
     public KafkaConsumerBuilder autoPartitionPause(boolean autoPartitionPause) {
         this.autoPartitionPause = autoPartitionPause;
         return this;
