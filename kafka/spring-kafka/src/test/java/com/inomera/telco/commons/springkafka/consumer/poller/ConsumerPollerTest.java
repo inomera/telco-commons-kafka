@@ -255,6 +255,34 @@ class ConsumerPollerTest {
     }
 
     @Test
+    @DisplayName("a partition paused while nothing is in flight is resumed again")
+    void idlePausedPartitionIsResumed() {
+        final RecordingConsumer consumer = new RecordingConsumer();
+        consumer.updateBeginningOffsets(Map.of(P0, 0L, P1, 0L));
+
+        final TestableConsumerPoller poller =
+                new TestableConsumerPoller(properties(OffsetCommitStrategy.AT_LEAST_ONCE_SINGLE), consumer);
+        poller.setConsumerRecordHandler(rec -> CompletableFuture.completedFuture(new InvokerResult(rec)));
+
+        consumer.schedulePollTask(() -> consumer.rebalance(List.of(P0, P1)));
+
+        poller.start();
+        try {
+            await("assignment", () -> consumer.lastAssignment.get().contains(P1));
+
+            // pause() is asynchronous, so the rejection handler can land it after the partition's
+            // last in-flight future was already reaped. Skipping idle partitions when resuming
+            // left such a partition paused forever and consumption stopped dead.
+            poller.pause(P1);
+            await("pause to be applied", () -> consumer.pausedPartitions.contains(P1));
+
+            await("the idle partition to be resumed", () -> !consumer.paused().contains(P1));
+        } finally {
+            poller.stop();
+        }
+    }
+
+    @Test
     @DisplayName("bulk poller rejects a single-record handler instead of silently ignoring it")
     void bulkPollerRejectsSingleRecordHandler() {
         final MockConsumer<String, Object> consumer = new MockConsumer<>("earliest");

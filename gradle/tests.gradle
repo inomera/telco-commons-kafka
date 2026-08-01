@@ -12,6 +12,9 @@ dependencies {
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
 
+    // Throughput benchmarks are opt-in: ./gradlew :spring-kafka:test -Pbenchmark=true
+    systemProperty 'benchmark', (project.findProperty('benchmark') ?: '') as String
+
     testLogging {
         events "skipped", "failed"
         exceptionFormat = 'full'

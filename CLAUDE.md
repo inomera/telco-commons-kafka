@@ -8,7 +8,7 @@ Several release lines are maintained in parallel and the JDK / Spring / `kafka-c
 
 | Branch | `spring-kafka` | Java | Spring | kafka-clients | Gradle |
 |---|---|---|---|---|---|
-| `v4.x.x` (current) | **4.1.1** | **25** | **7.0.8** (Boot 4.0.7) | **4.1.2** | **9.2.1** |
+| `v4.x.x` (current) | **4.1.2** | **25** | **7.0.8** (Boot 4.0.7) | **4.1.2** | **9.2.1** |
 | `master` | 4.0.0 | 23 | 6.2.1 | 4.0.0 | 8.12.1 |
 | `v3.x.x` | 3.0.7 | 17 | 6.0.13 | 3.0.2 | — |
 | `v2.3.x` | 2.3.8 | 8/11 | 5.3.x | 3.0.2 | 7.4 |
@@ -19,7 +19,7 @@ options are configured once in the root `subprojects` block, not per module.
 
 `kafka_clients` and the other shared versions live in the **root `build.gradle` `versions` map**, not per module. README.md carries the user-facing compatibility matrix (also lists Kafka *server* ≥ 4.0.0 for this line).
 
-Each publishable module has its own `VERSION` file and versions independently — `kafka/spring-kafka` is 4.1.1 while the serializer modules sit at 4.1.0, because only the library has changed since. Bump the patch version of the modules a change actually touches; do not move them in lockstep. Git tags are `<module>/<version>` (e.g. `spring-kafka/4.1.1`).
+Each publishable module has its own `VERSION` file and versions independently — `kafka/spring-kafka` is 4.1.2 while the serializer modules sit at 4.1.0, because only the library has changed since. Bump the patch version of the modules a change actually touches; do not move them in lockstep. Git tags are `<module>/<version>` (e.g. `spring-kafka/4.1.2`).
 
 ## Build & test
 

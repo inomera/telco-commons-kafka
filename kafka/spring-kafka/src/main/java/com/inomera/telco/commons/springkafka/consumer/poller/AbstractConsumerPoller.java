@@ -271,17 +271,23 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
     /**
      * Collects the completed prefix of every partition, feeds each result to the retry hook and
      * queues its offset. A partition is resumed once nothing is left in flight for it.
+     *
+     * <p>Note an idle partition still has to be considered for resuming. {@link #pause} is
+     * asynchronous, so the rejection handler can pause a partition <em>after</em> its last
+     * in-flight future has already been reaped; skipping empty partitions here left such a
+     * partition paused forever and consumption stopped dead.
      */
     private void reapCompleted() {
         if (inFlight.isEmpty()) {
             return;
         }
 
-        final Collection<TopicPartition> toResume = new HashSet<>();
+        final Collection<TopicPartition> idle = new HashSet<>();
 
         for (Map.Entry<TopicPartition, ArrayDeque<Future<R>>> entry : inFlight.entrySet()) {
             final ArrayDeque<Future<R>> queue = entry.getValue();
             if (queue.isEmpty()) {
+                idle.add(entry.getKey());
                 continue;
             }
 
@@ -309,11 +315,19 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
                 markCommittable(entry.getKey(), highestCompleted);
             }
             if (queue.isEmpty()) {
-                toResume.add(entry.getKey());
+                idle.add(entry.getKey());
             }
         }
 
-        if (autoPartitionPause && !toResume.isEmpty()) {
+        if (idle.isEmpty()) {
+            return;
+        }
+
+        // Resume only what is actually paused, so an idle partition can never be left behind and
+        // we do not issue a resume for partitions that were never paused.
+        final Collection<TopicPartition> toResume = new HashSet<>(idle);
+        toResume.retainAll(consumer.paused());
+        if (!toResume.isEmpty()) {
             consumer.resume(toResume);
             LOG.debug("RESUMED-> {}", toResume);
         }
