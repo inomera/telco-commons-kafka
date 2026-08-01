@@ -10,6 +10,9 @@ repositories {
     mavenCentral()
 }
 
+// Without this the module has no JUnit Platform wiring and `--tests` reports "no tests found".
+apply from: "${rootProject.rootDir}/gradle/tests.gradle"
+
 configurations {
     compileOnly {
         extendsFrom annotationProcessor

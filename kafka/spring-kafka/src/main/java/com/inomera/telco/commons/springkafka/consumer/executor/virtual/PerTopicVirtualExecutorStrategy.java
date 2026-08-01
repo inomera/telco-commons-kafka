@@ -1,6 +1,5 @@
 package com.inomera.telco.commons.springkafka.consumer.executor.virtual;
 
-import com.inomera.telco.commons.lang.thread.IncrementalNamingVirtualThreadFactory;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
@@ -97,10 +96,10 @@ public class PerTopicVirtualExecutorStrategy implements ParameterBasedVirtualExe
      */
     private ExecutorService createExecutor(String topic) {
         LOG.info("Creating new Virtual Thread Pool for topic: {}", topic);
-        if (this.threadFactory != null) {
-            return Executors.newThreadPerTaskExecutor(this.threadFactory);
-        }
-        IncrementalNamingVirtualThreadFactory virtualThreadFactory = new IncrementalNamingVirtualThreadFactory(topic);
-        return Executors.newThreadPerTaskExecutor(virtualThreadFactory);
+        // Validate the factory: an executor calls start() on whatever newThread returns, so a
+        // factory that already started the thread fails every task with
+        // IllegalThreadStateException.
+        return Executors.newThreadPerTaskExecutor(
+                VirtualThreadFactories.unstartedVirtual(this.threadFactory, topic + "-virtual-"));
     }
 }

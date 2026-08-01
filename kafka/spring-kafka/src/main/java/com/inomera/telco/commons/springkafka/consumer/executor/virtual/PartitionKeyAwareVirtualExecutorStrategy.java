@@ -76,8 +76,19 @@ public class PartitionKeyAwareVirtualExecutorStrategy implements ParameterBasedV
                 Executors.newSingleThreadExecutor(resolveThreadFactory()));
     }
 
+    /**
+     * Resolved once in {@link #start()}. A factory that returns already-started threads cannot be
+     * handed to an executor, so it is validated rather than trusted.
+     */
+    private volatile ThreadFactory effectiveThreadFactory;
+
     private ThreadFactory resolveThreadFactory() {
-        return this.threadFactory != null ? this.threadFactory : Thread.ofVirtual().factory();
+        ThreadFactory resolved = this.effectiveThreadFactory;
+        if (resolved == null) {
+            resolved = VirtualThreadFactories.unstartedVirtual(this.threadFactory, "partition-key-virtual-");
+            this.effectiveThreadFactory = resolved;
+        }
+        return resolved;
     }
 
     /**
