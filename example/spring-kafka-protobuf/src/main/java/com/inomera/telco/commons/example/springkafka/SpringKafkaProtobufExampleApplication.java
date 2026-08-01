@@ -4,6 +4,8 @@ import com.google.protobuf.GeneratedMessage;
 import com.inomera.telco.commons.example.domain.constant.KafkaTopicUtils;
 import com.inomera.telco.commons.kafkaprotobuf.ImmutableClassIdRegistry;
 import com.inomera.telco.commons.kafkaprotobuf.KafkaProtobufDeserializer;
+import com.inomera.telco.commons.example.springkafka.e2e.E2eMetrics;
+import com.inomera.telco.commons.example.springkafka.e2e.E2eRetryListener;
 import com.inomera.telco.commons.kafkaprotobuf.KafkaProtobufSerializer;
 import com.inomera.telco.commons.kafkaprotobuf.ProtobufUtils;
 import com.inomera.telco.commons.lang.thread.IncrementalNamingVirtualThreadFactory;
@@ -155,6 +157,47 @@ public class SpringKafkaProtobufExampleApplication {
     @Bean
     public EventPublisher eventPublisher(KafkaMessagePublisher<? super GeneratedMessage> kafkaPublisher) {
         return new EventPublisher(kafkaPublisher);
+    }
+
+    // ------------------------------------------------------------------ E2E scenarios
+
+    @Bean
+    public E2eMetrics e2eMetrics() {
+        return new E2eMetrics();
+    }
+
+    @Bean
+    public E2eRetryListener e2eRetryListener(E2eMetrics e2eMetrics) {
+        return new E2eRetryListener(e2eMetrics);
+    }
+
+    /**
+     * Dedicated consumer for the retry scenario. In-memory retry only applies to the
+     * at-least-once strategies, so this one cannot share the default AT_MOST_ONCE_BULK config.
+     */
+    @Bean
+    public KafkaMessageConsumer e2eRetryConsumer(KafkaConsumerBuilder builder,
+                                                 KafkaConsumerConfigurationProperties defaultKafkaConsumerConfigurationProperties,
+                                                 KafkaProtobufDeserializer kafkaDeserializer) {
+        return builder.properties(defaultKafkaConsumerConfigurationProperties.getProperties())
+                .groupId(E2eRetryListener.GROUP)
+                .topics(E2eRetryListener.TOPIC)
+                .offsetCommitStrategy(OffsetCommitStrategy.AT_LEAST_ONCE_SINGLE)
+                .valueDeserializer(kafkaDeserializer)
+                .autoPartitionPause(true)
+                .invoker()
+                .unordered()
+                .singleExecutor()
+                .coreThreadCount(1)
+                .maxThreadCount(2)
+                .keepAliveTime(1)
+                .keepAliveTimeUnit(TimeUnit.MINUTES)
+                .queueCapacity(100)
+                .and()
+                .and()
+                .and()
+                .threadStore(consumerThreadStore())
+                .build();
     }
 
     @Bean

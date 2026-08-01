@@ -1,121 +1,210 @@
 package com.inomera.telco.commons.springkafka.consumer.retry;
 
 import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
-import com.inomera.telco.commons.lang.thread.ThreadUtils;
 import com.inomera.telco.commons.springkafka.consumer.invoker.InvokerResult;
 import com.inomera.telco.commons.springkafka.consumer.poller.ConsumerRecordHandler;
 import com.inomera.telco.commons.springkafka.util.InterruptUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.SmartLifecycle;
 
-import java.util.Date;
-import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.DelayQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.inomera.telco.commons.springkafka.SpringKafkaConstants.RETRY_THREAD_NAME_FORMAT;
 
-public class DefaultInMemoryRecordRetryConsumer implements SmartLifecycle, InMemoryRecordRetryConsumer, Runnable {
-
+/**
+ * Drains scheduled retries and re-dispatches them through the invoker.
+ *
+ * <p>Rewritten in 4.1.0. The previous implementation:
+ * <ul>
+ *   <li>kept its queue in a {@code public static} field, so every consumer in the JVM shared one
+ *       queue and a retry could be executed against the wrong consumer group, silently dropping
+ *       the record;</li>
+ *   <li>re-queued a failure immediately, so {@code retryBackoffTime} never delayed anything and a
+ *       permanently failing record was retried as fast as the CPU allowed;</li>
+ *   <li>never removed successful records from its attempt-counter map, leaking one entry per
+ *       retried record for the lifetime of the process;</li>
+ *   <li>ignored the result of {@code offer}, silently discarding records once full;</li>
+ *   <li>blocked forever on {@code future.get()} with no timeout.</li>
+ * </ul>
+ *
+ * @author Turgay Can
+ */
+public class DefaultInMemoryRecordRetryConsumer implements InMemoryRecordRetryConsumer, Runnable {
     private static final Logger LOG = LoggerFactory.getLogger(DefaultInMemoryRecordRetryConsumer.class);
+    private static final long STOP_TIMEOUT_SECONDS = 15L;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private final AtomicBoolean closed = new AtomicBoolean(false);
-
-    public static final BlockingQueue<RetryContext> retryQueue = new LinkedBlockingQueue<>(10_000);
-    private final Map<String, AtomicInteger> retryMap = new ConcurrentHashMap<>(10);
-
+    private final DelayQueue<RetryContext> retryQueue = new DelayQueue<>();
     private final ConsumerRecordHandler consumerRecordHandler;
+    private final RetryPolicy defaultPolicy;
+    private final DeadLetterHandler deadLetterHandler;
+    private final Semaphore capacity;
+
+    private ExecutorService executorService;
 
     public DefaultInMemoryRecordRetryConsumer(ConsumerRecordHandler consumerRecordHandler) {
+        this(consumerRecordHandler, RetryPolicy.defaults(), new LoggingDeadLetterHandler());
+    }
+
+    public DefaultInMemoryRecordRetryConsumer(ConsumerRecordHandler consumerRecordHandler,
+                                              RetryPolicy defaultPolicy,
+                                              DeadLetterHandler deadLetterHandler) {
         this.consumerRecordHandler = consumerRecordHandler;
+        this.defaultPolicy = defaultPolicy;
+        this.deadLetterHandler = deadLetterHandler;
+        this.capacity = new Semaphore(defaultPolicy.capacity());
+    }
+
+    @Override
+    public boolean offer(InvokerResult result, RetryPolicy policy) {
+        if (result == null || result.getRecord() == null) {
+            return false;
+        }
+        final RetryPolicy effective = policy == null ? defaultPolicy : policy;
+
+        // Hard cap: refusing here is what keeps the retry buffer from growing without bound.
+        // The caller decides what to do instead (hold the offset back, or dead-letter).
+        if (!capacity.tryAcquire()) {
+            LOG.warn("In-memory retry capacity ({}) exhausted; refusing retry for {}-{}@{}",
+                    effective.capacity(), result.getRecord().topic(),
+                    result.getRecord().partition(), result.getRecord().offset());
+            return false;
+        }
+
+        final RetryContext context = new RetryContext();
+        context.setRetry(result);
+        context.setCount(1);
+        context.setMaxCount(effective.maxAttempts());
+        context.setBackoffTime(effective.baseBackoff().toMillis());
+        context.scheduleIn(effective.backoffNanos(1));
+
+        if (!retryQueue.offer(context)) {
+            capacity.release();
+            return false;
+        }
+        return true;
     }
 
     @Override
     public void run() {
         try {
-            int pollWaitMs = 100;
             while (running.get()) {
-                final RetryContext retryContext = retryQueue.poll(pollWaitMs, TimeUnit.MILLISECONDS);
-                if (retryContext == null) {
-                    pollWaitMs = Math.min(pollWaitMs + 50, 3000);
+                // Parks until the next attempt is actually due; no spinning, no busy retry.
+                final RetryContext context = retryQueue.poll(200, TimeUnit.MILLISECONDS);
+                if (context == null) {
                     continue;
                 }
-                consume(retryContext);
+                try {
+                    consume(context);
+                } finally {
+                    capacity.release();
+                }
             }
-
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         } catch (Exception e) {
-            LOG.error("Exception occurred when polling or committing, message : {}",
-                    e.getMessage(), e);
+            LOG.error("In-memory retry loop terminated unexpectedly: {}", e.getMessage(), e);
             InterruptUtils.interruptIfInterruptedException(e);
-        } finally {
-            closed.set(true);
         }
-
     }
 
     @Override
     public void consume(RetryContext retryContext) {
         final InvokerResult result = retryContext.getRetry();
         final ConsumerRecord<String, ?> record = result.getRecord();
-        final String key = record.topic() + "-" + record.key() + "-" + record.offset();
-        final AtomicInteger actualCount = retryMap.computeIfAbsent(key, mf -> new AtomicInteger(0));
-        final int currentRetryCount = actualCount.incrementAndGet();
-        final long now = new Date().getTime();
-        if (currentRetryCount >= result.getKafkaListener().retryCount() && retryContext.isPassed(now)) {
-            LOG.warn(" the first one of the messages : {} is reached the retry count : {}, limit for the topic : {}", record, currentRetryCount, record.topic());
-            retryMap.remove(key);
+        final int attempt = retryContext.getCount();
+
+        LOG.info("Retry attempt {}/{} for {}-{}@{}", attempt, retryContext.getMaxCount(),
+                record.topic(), record.partition(), record.offset());
+
+        final boolean failedAgain;
+        try {
+            final Future<InvokerResult> future = consumerRecordHandler.handle(record);
+            final InvokerResult retried = future.get(defaultPolicy.invocationTimeout().toMillis(),
+                    TimeUnit.MILLISECONDS);
+            // A non-null listener annotation is how the invoker reports "this threw".
+            failedAgain = retried != null && retried.getKafkaListener() != null;
+        } catch (TimeoutException e) {
+            LOG.warn("Retry attempt {} for {}-{}@{} timed out after {}", attempt, record.topic(),
+                    record.partition(), record.offset(), defaultPolicy.invocationTimeout());
+            reschedule(retryContext, attempt);
+            return;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        } catch (Exception e) {
+            LOG.error("Retry attempt {} for {}-{}@{} failed: {}", attempt, record.topic(),
+                    record.partition(), record.offset(), e.getMessage(), e);
+            reschedule(retryContext, attempt);
             return;
         }
-        LOG.info("retry count : {},  message for processing the topic : {}", currentRetryCount, record);
-        final Future<InvokerResult> future = consumerRecordHandler.handle(record);
-        try {
-            final InvokerResult invokerResult = future.get();
-            if (invokerResult.getKafkaListener() == null) {
-                return;
+
+        if (failedAgain) {
+            reschedule(retryContext, attempt);
+        }
+    }
+
+    private void reschedule(RetryContext context, int attempt) {
+        if (attempt >= context.getMaxCount()) {
+            deadLetterHandler.onExhausted(context.getRetry().getRecord(), attempt);
+            return;
+        }
+        final int next = attempt + 1;
+        context.setCount(next);
+        context.scheduleIn(defaultPolicy.backoffNanos(next));
+        if (capacity.tryAcquire()) {
+            if (!retryQueue.offer(context)) {
+                capacity.release();
+                deadLetterHandler.onExhausted(context.getRetry().getRecord(), attempt);
             }
-            boolean offered = retryQueue.offer(retryContext);
-            LOG.trace("offered : {} retryContext : {}", offered, retryContext);
-        } catch (Exception e) {
-            LOG.error("Exception occurred when offering retryContext : {}", retryContext, e);
-            //swallowed exception
+        } else {
+            deadLetterHandler.onExhausted(context.getRetry().getRecord(), attempt);
         }
     }
 
     @Override
     public void start() {
-        //DO NOT use virtual thread for CPU bounded process
-        final ThreadFactory threadFactory = new IncrementalNamingThreadFactory(RETRY_THREAD_NAME_FORMAT);
-        //NO SONAR
-        //DO NOT use try with resources! thread state is managed by bean lifecycle
-        ExecutorService executorService = new ThreadPoolExecutor(0, 1, 0, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), threadFactory);
+        if (!running.compareAndSet(false, true)) {
+            return;
+        }
+        this.executorService = new ThreadPoolExecutor(0, 1, 0, TimeUnit.MILLISECONDS,
+                new SynchronousQueue<>(), new IncrementalNamingThreadFactory(RETRY_THREAD_NAME_FORMAT));
+        // running is already true, so the loop cannot observe a stale false and exit immediately.
         executorService.submit(this);
-        running.set(true);
     }
 
     @Override
     public void stop() {
-        if (!running.get()) {
+        if (!running.compareAndSet(true, false)) {
             return;
         }
-
-        this.running.set(false);
-        do {
-            ThreadUtils.sleepQuietly(500);
-        } while (!closed.get());
-
+        final ExecutorService executor = this.executorService;
+        this.executorService = null;
+        if (executor == null) {
+            return;
+        }
+        executor.shutdownNow();
+        try {
+            if (!executor.awaitTermination(STOP_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                LOG.warn("In-memory retry consumer did not stop within {}s.", STOP_TIMEOUT_SECONDS);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        retryQueue.clear();
     }
 
-    @Override
-    public boolean isRunning() {
-        return this.running.get();
-    }
-
-    @Override
-    public boolean isAutoStartup() {
-        return this.running.get() && this.closed.get();
+    /** Retries currently scheduled. Exposed for metrics and tests. */
+    public int pendingRetryCount() {
+        return retryQueue.size();
     }
 }

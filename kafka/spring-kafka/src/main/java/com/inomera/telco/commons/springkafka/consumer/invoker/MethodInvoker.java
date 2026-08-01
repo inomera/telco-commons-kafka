@@ -8,6 +8,7 @@ import org.apache.kafka.common.header.Headers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.FutureTask;
@@ -50,20 +51,26 @@ public class MethodInvoker {
                     return;
                 }
 
-                final long invokerMethodCount = listenerMethodRegistry
-                        .getListenerMethods(groupId, record.topic(), msg.getClass())
-                        .peek(listenerMethod -> { //DO NOT remove suggestion, invoke method inner method
-                            final KafkaListener kafkaListener = invokeListenerMethod(listenerMethod, msg, record);
-                            invokerResult.setKafkaListener(kafkaListener);
-                        })
-                        .count();
+                // An explicit loop, not peek()+count(): count() is allowed to skip the pipeline
+                // when it can derive the size, so driving side effects from peek() only worked
+                // by accident of there being a filter in front of it.
+                final ListenerMethod[] listenerMethods =
+                        listenerMethodRegistry.resolveListenerMethods(groupId, record.topic(), msg.getClass());
 
-                LOG.trace("Invoked {} listener methods", invokerMethodCount);
-                if (invokerMethodCount == 0L) {
+                for (ListenerMethod listenerMethod : listenerMethods) {
+                    final KafkaListener kafkaListener = invokeListenerMethod(listenerMethod, msg, record);
+                    if (kafkaListener != null) {
+                        invokerResult.setKafkaListener(kafkaListener);
+                    }
+                }
+
+                LOG.trace("Invoked {} listener methods", listenerMethods.length);
+                if (listenerMethods.length == 0) {
                     invokeListenerMethodNotFoundHandler(record);
                 }
             } catch (Exception e) {
-                LOG.error("Error processing kafka message [{}].", record.value(), e);
+                LOG.error("Error processing kafka message {}-{}@{}.",
+                        record.topic(), record.partition(), record.offset(), e);
             }
         }, invokerResult);
     }
@@ -73,28 +80,38 @@ public class MethodInvoker {
         final BulkInvokerResult invokerResult = new BulkInvokerResult(records);
         return new FutureTask<>(() -> {
             try {
+                // LinkedHashSet, not Collectors.toSet(): the listener contract is a Set, but at
+                // least deliver the batch in offset order instead of HashMap order.
                 final Set<Object> messages = records.stream()
                         .map(ConsumerRecord::value)
-                        .collect(Collectors.toSet());
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
                 if (messages.isEmpty()) {
                     LOG.info("messages list is received as empty from topic: {}", firstRecord.topic());
                     return;
                 }
+                if (messages.size() != records.size()) {
+                    // Inherent to the Set-based listener signature; make it visible rather than
+                    // silently handing the listener fewer messages than were polled.
+                    LOG.warn("Bulk batch for topic {} collapsed from {} records to {} distinct payloads.",
+                            firstRecord.topic(), records.size(), messages.size());
+                }
 
-                final long invokerMethodCount = listenerMethodRegistry
-                        .getListenerMethods(groupId, firstRecord.topic(), Set.class)
-                        .peek(listenerMethod -> { //DO NOT remove suggestion, invoke method inner method
-                            final KafkaListener kafkaListener = invokeListenerMethods(listenerMethod, messages, firstRecord);
-                            invokerResult.setKafkaListener(kafkaListener);
-                        })
-                        .count();
+                final ListenerMethod[] listenerMethods =
+                        listenerMethodRegistry.resolveListenerMethods(groupId, firstRecord.topic(), Set.class);
 
-                LOG.trace("Invoked {} listener methods", invokerMethodCount);
-                if (invokerMethodCount == 0L) {
+                for (ListenerMethod listenerMethod : listenerMethods) {
+                    final KafkaListener kafkaListener = invokeListenerMethods(listenerMethod, messages, firstRecord);
+                    if (kafkaListener != null) {
+                        invokerResult.setKafkaListener(kafkaListener);
+                    }
+                }
+
+                LOG.trace("Invoked {} listener methods", listenerMethods.length);
+                if (listenerMethods.length == 0) {
                     invokeListenerMethodNotFoundHandler(firstRecord);
                 }
             } catch (Exception e) {
-                LOG.error("Error processing bulk kafka message [{}].", firstRecord.value(), e);
+                LOG.error("Error processing bulk kafka batch for topic {}.", firstRecord.topic(), e);
             }
         }, invokerResult);
     }
@@ -104,7 +121,8 @@ public class MethodInvoker {
             invokeBeforeInterceptors(message, record.headers());
             return listenerMethod.invoke(message, record.topic());
         } catch (Exception e) {
-            LOG.error("Error processing kafka message [{}]", message, e);
+            LOG.error("Error processing kafka message {}-{}@{}",
+                    record.topic(), record.partition(), record.offset(), e);
             return null;
         } finally {
             invokeAfterInterceptors(message, record.headers());
@@ -116,7 +134,8 @@ public class MethodInvoker {
             invokeBeforeInterceptors(messages, record.headers());
             return listenerMethod.invoke(messages, record.topic());
         } catch (Exception e) {
-            LOG.error("Error processing kafka message [{}]", messages, e);
+            LOG.error("Error processing kafka batch of {} messages from topic {}",
+                    messages.size(), record.topic(), e);
             return null;
         } finally {
             invokeAfterInterceptors(messages, record.headers());

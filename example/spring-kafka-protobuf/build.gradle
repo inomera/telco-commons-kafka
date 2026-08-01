@@ -1,46 +1,36 @@
-buildscript {
-    dependencies {
-        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.9.4'
-    }
-}
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.4.2'
+    id 'org.springframework.boot' version '4.0.7'
     id 'io.spring.dependency-management' version '1.1.7'
-    id "com.google.protobuf" version "0.9.4"
-}
-
-apply plugin: 'io.spring.dependency-management'
-apply plugin: 'org.springframework.boot'
-apply plugin: 'com.google.protobuf'
-
-ext {
-    set('springCloudVersion', "2024.0.0")
-    set('resilience4jVersion', '2.3.0')
+    id 'com.google.protobuf' version '0.9.4'
 }
 
 repositories {
-    gradlePluginPortal()
     mavenLocal()
     mavenCentral()
 }
 
-sourceCompatibility = JavaVersion.VERSION_23
-targetCompatibility = JavaVersion.VERSION_23
+// Without this the module has no JUnit Platform wiring and `--tests` reports "no tests found".
+apply from: "${rootProject.rootDir}/gradle/tests.gradle"
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation 'com.google.protobuf:protobuf-java:4.29.3'
+    implementation "org.springframework.boot:spring-boot-starter-web"
+    implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
     implementation "org.apache.kafka:kafka-clients:${versions.kafka_clients}"
-    implementation "com.google.guava:guava:33.4.0-jre"
-    implementation 'org.apache.commons:commons-lang3:3.17.0'
-
+    implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
     implementation "com.inomera.telco.commons:lang:${versions.lang}"
+    implementation "com.google.guava:guava:${versions.guava}"
 
     implementation project(":spring-kafka")
     implementation project(":kafka-protobuf")
 
-    implementation "org.projectlombok:lombok:${versions.lombok}"
+    compileOnly "org.projectlombok:lombok:${versions.lombok}"
     annotationProcessor "org.projectlombok:lombok:${versions.lombok}"
 
     testImplementation "org.junit.jupiter:junit-jupiter-api:${versions.jupiter}"
@@ -50,14 +40,6 @@ dependencies {
     testImplementation "org.mockito:mockito-junit-jupiter:${versions.mockito_jupiter}"
     testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
-
-dependencyManagement {
-    imports {
-        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
-    }
-}
-
-compileJava.dependsOn('generateProto')
 
 sourceSets {
     main {
@@ -69,7 +51,7 @@ sourceSets {
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:4.29.3"
+        artifact = "com.google.protobuf:protoc:${versions.protobuf}"
     }
     generateProtoTasks {
         all().configureEach {
@@ -78,9 +60,8 @@ protobuf {
             }
         }
     }
-    processResources {
-        duplicatesStrategy = 'include'
-    }
 }
 
-
+tasks.named('processResources') {
+    duplicatesStrategy = 'include'
+}

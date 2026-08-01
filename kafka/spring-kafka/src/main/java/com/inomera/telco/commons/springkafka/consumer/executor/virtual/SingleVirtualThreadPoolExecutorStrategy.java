@@ -42,8 +42,13 @@ public class SingleVirtualThreadPoolExecutorStrategy implements DefaultVirtualEx
      * Initializes a new instance with a Virtual Thread-based executor.
      * Uses {@link Executors#newVirtualThreadPerTaskExecutor()} to create a per-task virtual thread.
      */
+    private final ThreadFactory threadFactory;
+
     public SingleVirtualThreadPoolExecutorStrategy(ThreadFactory threadFactory) {
-        this.executorService = Executors.newThreadPerTaskExecutor(threadFactory);
+        // Validated, not trusted: a factory returning already-started threads makes every task
+        // fail with IllegalThreadStateException.
+        this.threadFactory = VirtualThreadFactories.unstartedVirtual(threadFactory, "single-virtual-");
+        this.executorService = Executors.newThreadPerTaskExecutor(this.threadFactory);
     }
 
     /**
@@ -63,7 +68,9 @@ public class SingleVirtualThreadPoolExecutorStrategy implements DefaultVirtualEx
     @Override
     public void start() {
         if (executorService == null || executorService.isShutdown()) {
-            executorService = Executors.newVirtualThreadPerTaskExecutor();
+            // Reuse the validated factory so thread naming survives a stop/start cycle; this used
+            // to drop it and fall back to an anonymous executor.
+            executorService = Executors.newThreadPerTaskExecutor(threadFactory);
         }
         LOG.info("Starting virtual thread pool");
     }

@@ -7,16 +7,20 @@ Telco Commons Kafka is a lightweight, Spring-friendly Kafka integration library 
 
 Use lightweigth Virtual Threads.. minimum resources, maximum capacity of process messages!!
 
+📈 **[PERFORMANCE.md](PERFORMANCE.md)** — measured throughput, allocation and GC report, plus
+tuning guidance for offset commit strategies and the virtual-thread concurrency cap.
+
 # Version Compatability
 
 Compatability Matrix
 
 | Version | JDK   | Spring  | Kafka Client | Kafka Server |
-|---------|-------|---------|--------------|--------------|
-| v4.x.x  | 23 | 3.4.2   | 4.0.0 >=     | 4.0.0 >=     |
-| v3.x.x  | 17 | 3.1.5   | 3.0.2 >=     | 3.0.0 >=     |
-| v2.4.x  | 17 | 3.1.5   | 1.1.0 >=     | 1.1.0 >=     |
-| v2.3.x  | 8,11 | 2.7.12+ | 3.0.2 >=     | 3.0.0 >=     |
+|-------|-------|---------|--------------|--------------|
+| 4.1.x | 25 | 4.0.7   | 4.1.2 >=     | 4.0.0 >=     |
+| 4.x.x | 23 | 3.4.2   | 4.0.0 >=     | 4.0.0 >=     |
+| 3.x.x | 17 | 3.1.5   | 3.0.2 >=     | 3.0.0 >=     |
+| 2.4.x | 17 | 3.1.5   | 1.1.0 >=     | 1.1.0 >=     |
+| 2.3.x | 8,11 | 2.7.12+ | 3.0.2 >=     | 3.0.0 >=     |
 
 ## Subprojects
 
@@ -92,6 +96,20 @@ Try to use new versions.
 
 
 # Benchmark (OS vs Virtual Threads)
+
+> 📈 **See also: [PERFORMANCE.md](PERFORMANCE.md)** — the measured throughput, allocation and GC
+> report for 4.1.x, with a reproducible harness (`ThroughputBenchmarkTest`).
+>
+> The two benchmarks answer different questions and are not interchangeable:
+>
+> | | This section | [PERFORMANCE.md](PERFORMANCE.md) |
+> |---|---|---|
+> | Listener | 100 ms delay — **I/O-bound** | no-op — **framework overhead** |
+> | Shows | why virtual threads win on blocking work | cost of each commit strategy, dispatcher cap and GC |
+> | Lib version | 4.0.1 | 4.1.x |
+>
+> Read PERFORMANCE.md for offset-commit-strategy and `boundedExecutor` tuning; read this section
+> for the OS-versus-virtual-thread choice.
 
 ---
 
@@ -595,11 +613,7 @@ mavenReleaseUrl=https://oss.sonatype.org/service/local/staging/deploy/maven2/
 mavenSnapshotUrl=https://oss.sonatype.org/content/repositories/snapshots/
 mavenUsername=************************
 mavenPassword=************************
-mavenPackageGroup=com.inomera
-
-signing.keyId=******
-signing.password=******
-signing.secretKeyRingFile=******.gpg
+mavenPackageGroup=com.inomera.telco.commons
 ```
 
 Then you need to invoke `release.sh` script in the project root directory.
@@ -629,7 +643,13 @@ For example, to publish the project `spring-kafka`,
 you need to execute the following command in project root:
 
 ```
-gradle :spring-kafka:publish
+./gradlew publishToSonatype :spring-kafka:closeSonatypeStagingRepository
+``` 
+
+Publish all libs.
+
+``` 
+./gradlew publishToSonatype closeSonatypeStagingRepository
 ``` 
 
 The repository will not allow you to publish the same version twice.

@@ -23,3 +23,8 @@ MANIFEST.MF
 *.iml
 .gradle/
 gradle.properties
+
+# stray GC / JFR artifacts from local benchmark runs
+gc.log
+*.jfr
+hs_err_pid*.log

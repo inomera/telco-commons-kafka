@@ -1,7 +1,7 @@
 package com.inomera.telco.commons.springkafka.producer;
 
 import com.inomera.telco.commons.springkafka.fault.NoProducerAvailableException;
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.springframework.util.Assert;
 
 import java.util.Map;

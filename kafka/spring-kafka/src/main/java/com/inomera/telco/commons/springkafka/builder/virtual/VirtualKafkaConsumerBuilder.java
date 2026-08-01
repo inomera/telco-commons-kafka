@@ -9,6 +9,8 @@ import com.inomera.telco.commons.springkafka.consumer.invoker.ListenerMethodRegi
 import com.inomera.telco.commons.springkafka.consumer.poller.BulkConsumerPoller;
 import com.inomera.telco.commons.springkafka.consumer.poller.ConsumerPoller;
 import com.inomera.telco.commons.springkafka.consumer.poller.DefaultConsumerPoller;
+import com.inomera.telco.commons.springkafka.consumer.retry.DefaultBulkRecordRetryer;
+import com.inomera.telco.commons.springkafka.consumer.retry.DefaultRecordRetryer;
 import com.inomera.telco.commons.springkafka.consumer.retry.DefaultInMemoryBulkRecordRetryConsumer;
 import com.inomera.telco.commons.springkafka.consumer.retry.DefaultInMemoryRecordRetryConsumer;
 import com.inomera.telco.commons.springkafka.consumer.retry.InMemoryBulkRecordRetryConsumer;
@@ -128,6 +130,25 @@ public class VirtualKafkaConsumerBuilder {
         return virtualConsumerInvokerBuilder;
     }
 
+    /**
+     * Delegates rebalancing to the broker via the KIP-848 group protocol. See
+     * {@link com.inomera.telco.commons.springkafka.consumer.GroupProtocol} for what changes and
+     * which classic-protocol settings are dropped.
+     */
+    public VirtualKafkaConsumerBuilder serverSideRebalance() {
+        return serverSideRebalance(null);
+    }
+
+    /**
+     * Delegates rebalancing to the broker, asking for a specific server-side assignor.
+     *
+     * @param remoteAssignor {@code uniform} or {@code range}; {@code null} leaves the broker default
+     */
+    public VirtualKafkaConsumerBuilder serverSideRebalance(String remoteAssignor) {
+        GroupProtocol.enable(this.properties, remoteAssignor);
+        return this;
+    }
+
     public VirtualKafkaConsumerBuilder autoPartitionPause(boolean autoPartitionPause) {
         this.autoPartitionPause = autoPartitionPause;
         return this;
@@ -171,6 +192,7 @@ public class VirtualKafkaConsumerBuilder {
         consumerPoller.setConsumerThreadFactory(getWrappedThreadFactory(consumerPoller));
         final ConsumerInvoker invoker = virtualConsumerInvokerBuilder.build(consumerPoller, groupId);
         this.inMemoryRecordConsumer = this.inMemoryRecordConsumer == null ? new DefaultInMemoryRecordRetryConsumer(invoker::invoke) : this.inMemoryRecordConsumer;
+        consumerPoller.setRecordRetryer(new DefaultRecordRetryer(this.inMemoryRecordConsumer));
         return new SmartKafkaMessageConsumer(consumerPoller, invoker, this.inMemoryRecordConsumer);
     }
 
@@ -188,6 +210,7 @@ public class VirtualKafkaConsumerBuilder {
         bulkConsumerPoller.setConsumerThreadFactory(getWrappedThreadFactory(bulkConsumerPoller));
         final BulkConsumerInvoker bulkConsumerInvoker = virtualConsumerInvokerBuilder.buildBulk(bulkConsumerPoller, groupId);
         this.inMemoryBulkRecordRetryConsumer = this.inMemoryBulkRecordRetryConsumer == null ? new DefaultInMemoryBulkRecordRetryConsumer(bulkConsumerInvoker::invoke) : this.inMemoryBulkRecordRetryConsumer;
+        bulkConsumerPoller.setBulkRecordRetryer(new DefaultBulkRecordRetryer(this.inMemoryBulkRecordRetryConsumer));
         return new BulkSmartKafkaMessageConsumer(bulkConsumerPoller, bulkConsumerInvoker, this.inMemoryBulkRecordRetryConsumer);
     }
 }

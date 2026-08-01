@@ -1,5 +1,6 @@
 package com.inomera.telco.commons.springkafka.builder.virtual;
 
+import com.inomera.telco.commons.springkafka.consumer.executor.virtual.BoundedVirtualExecutorStrategy;
 import com.inomera.telco.commons.springkafka.consumer.executor.virtual.VirtualExecutorStrategy;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,19 @@ public class UnorderedVirtualProcessingStrategyBuilder {
         final VirtualExecutorPerTopicStrategyBuilder executorStrategyBuilder = new VirtualExecutorPerTopicStrategyBuilder(this);
         this.executorStrategyBuilder = executorStrategyBuilder;
         return executorStrategyBuilder;
+    }
+
+    /**
+     * Virtual threads with a hard ceiling on concurrent listener invocations.
+     *
+     * <p>Prefer this over {@link #singleExecutor()} for IO-bound listeners: a plain
+     * thread-per-task executor never rejects, so nothing limits how many records of a poll batch
+     * run at once and the downstream absorbs the whole batch.
+     *
+     * @param maxConcurrency in-flight invocation cap
+     */
+    public VirtualConsumerInvokerBuilder boundedExecutor(int maxConcurrency) {
+        return custom(new BoundedVirtualExecutorStrategy(maxConcurrency));
     }
 
     public VirtualConsumerInvokerBuilder custom(VirtualExecutorStrategy executorStrategy) {

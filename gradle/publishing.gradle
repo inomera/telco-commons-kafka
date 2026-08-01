@@ -1,14 +1,87 @@
+// Shared Maven Central publishing setup.
+//
+// Each module declares `pubName`, `pubDescription` and `pubRepo` in its `ext`
+// block before applying this script; everything else (sources/javadoc jars,
+// POM metadata, signing, repository) is identical and lives here.
+//
+// Rewritten for Gradle 9: the old setup relied on the `archives` configuration,
+// the `signArchives` task and the `model {}` software model, all of which were
+// removed in Gradle 9. `signing.sign(publication)` now covers the POM and every
+// artifact, so the manual `.asc` wiring is gone too.
+
 apply plugin: 'maven-publish'
+apply plugin: 'signing'
+
+def pubName = project.ext.pubName
+def pubDescription = project.ext.pubDescription
+def pubRepo = project.ext.pubRepo
 
 
-tasks.register('javadocJar', Jar) {
-    dependsOn javadoc
-    archiveClassifier.set("javadoc")
-    from javadoc.destinationDir
+java {
+    withSourcesJar()
+    withJavadocJar()
 }
 
-tasks.register('sourceJar', Jar) {
-    duplicatesStrategy = 'include'
-    archiveClassifier.set("sources")
-    from sourceSets.main.allJava
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+
+            groupId = project.group
+            artifactId = project.name
+            version = project.version
+
+            pom {
+                name = pubName
+                description = pubDescription
+                url = "https://github.com/inomera/${pubRepo}"
+
+                organization {
+                    name = 'Inomera Research'
+                    url = 'https://inomera.com/'
+                }
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'http://www.opensource.org/licenses/mit-license.php'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'turgaycan'
+                        name = 'Turgay Can'
+                        organization = 'Inomera'
+                        organizationUrl = 'https://github.com/turgaycan'
+                    }
+                }
+                scm {
+                    url = "https://github.com/inomera/${pubRepo}"
+                    connection = "scm:git:https://github.com/inomera/${pubRepo}.git"
+                    developerConnection = "scm:git:https://github.com/inomera/${pubRepo}.git"
+                }
+                issueManagement {
+                    system = 'GitHub'
+                    url = "https://github.com/inomera/${pubRepo}/issues"
+                }
+            }
+        }
+    }
+}
+
+signing {
+    // Sign through the local gpg binary and its agent, rather than requiring
+    // signing.keyId / signing.secretKeyRingFile. Optional overrides when the agent cannot
+    // resolve the key on its own: signing.gnupg.keyName, signing.gnupg.passphrase.
+    // (The Gradle method is useGpgCmd(); there is no useGnuPG().)
+    useGpgCmd()
+
+    required {
+        !project.version.endsWith('-SNAPSHOT') &&
+                !Boolean.parseBoolean(System.getenv('SNAPSHOT_RELEASE'))
+    }
+    sign publishing.publications.mavenJava
+}
+
+tasks.withType(GenerateModuleMetadata).configureEach {
+    enabled = false
 }

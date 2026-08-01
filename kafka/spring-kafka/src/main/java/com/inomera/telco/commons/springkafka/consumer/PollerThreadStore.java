@@ -26,6 +26,7 @@ public class PollerThreadStore implements ConsumerThreadStore {
         pollerThreadState.setOldJvmState(thread.getState().name());
         pollerThreadState.setCurrentJvmState(thread.getState().name());
         pollerThreadState.setConsumerPoller(consumerPoller);
+        pollerThreadState.setThread(thread);
 
         THREAD_STORE_SET.put(threadId, pollerThreadState);
     }

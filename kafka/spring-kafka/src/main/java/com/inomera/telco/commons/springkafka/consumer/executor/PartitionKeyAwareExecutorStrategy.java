@@ -65,7 +65,9 @@ public class PartitionKeyAwareExecutorStrategy implements ExecutorStrategy {
     @Override
     public ThreadPoolExecutor get(ConsumerRecord<String, ?> record) {
         final int partitionKey = getPartitionKey(record);
-        final int workerIndex = Math.abs(partitionKey) % executors.length;
+        // floorMod, not Math.abs: Math.abs(Integer.MIN_VALUE) is still negative, which threw
+        // ArrayIndexOutOfBoundsException for any key hashing to that value.
+        final int workerIndex = Math.floorMod(partitionKey, executors.length);
         return executors[workerIndex];
     }
 

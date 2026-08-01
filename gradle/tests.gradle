@@ -1,25 +1,50 @@
-apply plugin: 'jacoco'
+// Shared test configuration.
+//
+// Coverage is opt-in via -PwithCoverage. The JaCoCo agent attaches to every Test
+// task as soon as the plugin is applied, so keeping it always-on would make the
+// agent a hard dependency of a plain `./gradlew build`.
 
-test {
+dependencies {
+    // Gradle 9 no longer puts the launcher on the test runtime classpath implicitly.
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:${rootProject.versions.junit_platform}"
+}
+
+tasks.withType(Test).configureEach {
     useJUnitPlatform()
+
+    // Throughput benchmarks are opt-in: ./gradlew :spring-kafka:test -Pbenchmark=true
+    systemProperty 'benchmark', (project.findProperty('benchmark') ?: '') as String
+
+    // Extra JVM args for the test JVM, used to sweep garbage collectors:
+    //   -PbenchmarkJvmArgs="-XX:+UseZGC -Xmx1g"
+    def extraJvmArgs = (project.findProperty('benchmarkJvmArgs') ?: '') as String
+    if (!extraJvmArgs.isBlank()) {
+        jvmArgs extraJvmArgs.split('\\s+').toList()
+    }
 
     testLogging {
         events "skipped", "failed"
+        exceptionFormat = 'full'
     }
 
     reports {
-        html.required = true
+        html.required.set(true)
     }
 }
 
-jacoco {
-    toolVersion = "0.8.12"
-}
+if (project.hasProperty('withCoverage')) {
+    apply plugin: 'jacoco'
 
-jacocoTestReport {
-    reports {
-        xml.required = true
-        csv.required = true
-        html.outputLocation = file("${projectDir}/jacocoHtml")
+    jacoco {
+        // 0.8.14 is the first release that can instrument Java 25 class files.
+        toolVersion = "0.8.14"
+    }
+
+    jacocoTestReport {
+        reports {
+            xml.required.set(true)
+            csv.required.set(true)
+            html.outputLocation.set(layout.buildDirectory.dir("jacocoHtml"))
+        }
     }
 }
