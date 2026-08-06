@@ -1,7 +1,8 @@
 # Telco Commons Kafka Java Library
 
-![Build](https://github.com/inomera/telco-commons-kafka/workflows/Build/badge.svg)
-
+[![Stars](https://badgen.net/github/stars/inomera/telco-commons-kafka)](https://github.com/inomera/telco-commons-kafka/stargazers)
+[![Maven Central](https://img.shields.io/maven-central/v/com.inomera.telco.commons/spring-kafka.svg?label=Maven%20Central)](https://central.sonatype.com/namespace/com.inomera.telco.commons)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Telco Commons Kafka is a lightweight, Spring-friendly Kafka integration library designed for enterprise-scale messaging systems. It provides seamless support for multiple serialization formats including JSON, Kryo, Protobuf, and Smile, Avro(next minor version) and offers ready-to-use configuration properties for both producers and consumers. With a focus on simplicity, type-safety, and flexibility, this library makes it easy to build reactive and event-driven microservices using Apache Kafka and Spring Boot.
 
@@ -24,21 +25,13 @@ Compatability Matrix
 
 ## Subprojects
 
-| Artifact       | Version                                                                                                                                                                                                                          |
-|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| spring-kafka   | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/spring-kafka/badge.svg?version=4.0.1)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/spring-kafka)     |
-| kafka-json     | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-json/badge.svg?version=4.0.1)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-json)         |
-| kafka-kryo     | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-kryo/badge.svg?version=4.0.1)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-kryo)         |
-| kafka-protobuf | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-protobuf/badge.svg?version=4.0.1)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-protobuf) |
-| kafka-smile    | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-smile/badge.svg?version=4.0.1)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-smile)       |
-| -              | -                                                                                                                                                                                                                                |
-| spring-kafka   | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/spring-kafka/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/spring-kafka)     |
-| kafka-json     | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-json/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-json)         |
-| kafka-kryo     | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-kryo/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-kryo)         |
-| kafka-protobuf | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-protobuf/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-protobuf) |
-| kafka-smile    | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-smile/badge.svg?version=3.0.7)](https://maven-badges.herokuapp.com/maven-central/com.inomera.telco.commons/kafka-smile)       |
-
-
+| Artifact | Maven Central Badge |
+|---|---|
+| **spring-kafka** | [![Maven Central](https://img.shields.io/maven-central/v/com.inomera.telco.commons/spring-kafka.svg)](https://central.sonatype.com/artifact/com.inomera.telco.commons/spring-kafka) |
+| **kafka-json** | [![Maven Central](https://img.shields.io/maven-central/v/com.inomera.telco.commons/kafka-json.svg)](https://central.sonatype.com/artifact/com.inomera.telco.commons/kafka-json) |
+| **kafka-kryo** | [![Maven Central](https://img.shields.io/maven-central/v/com.inomera.telco.commons/kafka-kryo.svg)](https://central.sonatype.com/artifact/com.inomera.telco.commons/kafka-kryo) |
+| **kafka-protobuf** | [![Maven Central](https://img.shields.io/maven-central/v/com.inomera.telco.commons/kafka-protobuf.svg)](https://central.sonatype.com/artifact/com.inomera.telco.commons/kafka-protobuf) |
+| **kafka-smile** | [![Maven Central](https://img.shields.io/maven-central/v/com.inomera.telco.commons/kafka-smile.svg)](https://central.sonatype.com/artifact/com.inomera.telco.commons/kafka-smile) |
 
 ## With Gradle
 
@@ -50,6 +43,7 @@ implementation 'com.inomera.telco.commons:kafka-json:4.1.0'
 implementation 'com.inomera.telco.commons:kafka-kryo:4.1.0'
 implementation 'com.inomera.telco.commons:kafka-protobuf:4.1.0'
 implementation 'com.inomera.telco.commons:kafka-smile:4.1.0'
+
 ```
 
 JDK 23 Support (gradle 8.x)
@@ -60,6 +54,7 @@ implementation 'com.inomera.telco.commons:kafka-json:4.0.1'
 implementation 'com.inomera.telco.commons:kafka-kryo:4.0.1'
 implementation 'com.inomera.telco.commons:kafka-protobuf:4.0.1'
 implementation 'com.inomera.telco.commons:kafka-smile:4.0.1'
+
 ```
 
 JDK 17 Support
@@ -70,6 +65,7 @@ implementation 'com.inomera.telco.commons:kafka-json:3.0.7'
 implementation 'com.inomera.telco.commons:kafka-kryo:3.0.7'
 implementation 'com.inomera.telco.commons:kafka-protobuf:3.0.7'
 implementation 'com.inomera.telco.commons:kafka-smile:3.0.7'
+
 ```
 
 ```groovy
@@ -78,6 +74,7 @@ implementation 'com.inomera.telco.commons:kafka-json:2.4.0'
 implementation 'com.inomera.telco.commons:kafka-kryo:2.4.0'
 implementation 'com.inomera.telco.commons:kafka-protobuf:2.4.0'
 implementation 'com.inomera.telco.commons:kafka-smile:2.4.0'
+
 ```
 
 JDK 8 & 11 Support (!!Not published to central maven repository!!)
@@ -88,36 +85,34 @@ implementation 'com.inomera.telco.commons:kafka-json:2.3.8'
 implementation 'com.inomera.telco.commons:kafka-kryo:2.3.8'
 implementation 'com.inomera.telco.commons:kafka-protobuf:2.3.8'
 implementation 'com.inomera.telco.commons:kafka-smile:2.3.8'
+
 ```
 
 Try to use new versions.
 
 ### Important Notes
 
-- Library support legacy OS threads and also virtual threads!!!! (4.x.x)
-- Support from JDK23 and 4.X.X version
-- Support from JDK17 and JDK17+
-- Support Spring Boot 3.X.X version
-
-- Use 3.X.X version of spring-kafka library if you are use JDK17 and above version and Spring Boot 3.X.X
-- Use 2.X.X version of kafka-kryo library if you are use JDK17 and above version and Spring Boot 3.X.X
-- Use 2.X.X version of kafka-protobuf library if you are use JDK17 and above version and Spring Boot 3.X.X
-- Use 2.X.X version of kafka-smile library if you are use JDK17 and above version and Spring Boot 3.X.X
-
+* Library support legacy OS threads and also virtual threads!!!! (4.x.x)
+* Support from JDK23 and 4.X.X version
+* Support from JDK17 and JDK17+
+* Support Spring Boot 3.X.X version
+* Use 3.X.X version of spring-kafka library if you are use JDK17 and above version and Spring Boot 3.X.X
+* Use 2.X.X version of kafka-kryo library if you are use JDK17 and above version and Spring Boot 3.X.X
+* Use 2.X.X version of kafka-protobuf library if you are use JDK17 and above version and Spring Boot 3.X.X
+* Use 2.X.X version of kafka-smile library if you are use JDK17 and above version and Spring Boot 3.X.X
 
 # Benchmark (OS vs Virtual Threads)
 
-> 📈 **See also: [PERFORMANCE.md](PERFORMANCE.md)** — the measured throughput, allocation and GC
+> 📈 **See also: [PERFORMANCE.md**](PERFORMANCE.md) — the measured throughput, allocation and GC
 > report for 4.1.x, with a reproducible harness (`ThroughputBenchmarkTest`).
->
 > The two benchmarks answer different questions and are not interchangeable:
->
-> | | This section | [PERFORMANCE.md](PERFORMANCE.md) |
-> |---|---|---|
+> |  | This section | [PERFORMANCE.md](PERFORMANCE.md) |
+> | --- | --- | --- |
 > | Listener | 100 ms delay — **I/O-bound** | no-op — **framework overhead** |
 > | Shows | why virtual threads win on blocking work | cost of each commit strategy, dispatcher cap and GC |
 > | Lib version | 4.0.1 | 4.1.x |
->
+> 
+> 
 > Read PERFORMANCE.md for offset-commit-strategy and `boundedExecutor` tuning; read this section
 > for the OS-versus-virtual-thread choice.
 
@@ -125,52 +120,52 @@ Try to use new versions.
 
 ## 🧪 **Benchmark Setup**
 
-- **Kafka Cluster**: 3 nodes
-- **Producer Messages**: 10K and 100K
-- **JVM Args**: `-Xms50m -Xmx2256m`
-- **Instance**: Single JVM
-- **max.poll.records**: 1000
-- **Worker threads (for OS threads case)**: 360
-- **Worker threads delay**: 100 ms(millis)
-- **Lib version**: 4.0.1
+* **Kafka Cluster**: 3 nodes
+* **Producer Messages**: 10K and 100K
+* **JVM Args**: `-Xms50m -Xmx2256m`
+* **Instance**: Single JVM
+* **max.poll.records**: 1000
+* **Worker threads (for OS threads case)**: 360
+* **Worker threads delay**: 100 ms(millis)
+* **Lib version**: 4.0.1
 
 ---
 
 ## 📊 10K Records - Virtual Threads
 
-| Case | Consumer Configs             | Duration    | TPS     | Max CPU | Memory |
-|------|------------------------------|-------------|---------|---------|--------|
-| 1    | AT_MOST_ONCE_BULK           | ~0.978s     | 10K     | 13%     | 104 MB |
-| 2    | AT_MOST_ONCE_SINGLE         | ~118s       | 85      | 13%     | 104 MB |
-| 3    | AT_LEAST_ONCE_BULK          | ~1.052s     | 10K     | 13%     | 104 MB |
-| 4    | AT_LEAST_ONCE_SINGLE        | ~1.152s     | 10K     | 13%     | 104 MB |
+| Case | Consumer Configs | Duration | TPS | Max CPU | Memory |
+| --- | --- | --- | --- | --- | --- |
+| 1 | AT_MOST_ONCE_BULK | ~0.978s | 10K | 13% | 104 MB |
+| 2 | AT_MOST_ONCE_SINGLE | ~118s | 85 | 13% | 104 MB |
+| 3 | AT_LEAST_ONCE_BULK | ~1.052s | 10K | 13% | 104 MB |
+| 4 | AT_LEAST_ONCE_SINGLE | ~1.152s | 10K | 13% | 104 MB |
 
 ---
 
 ## 📊 10K Records - OS Threads
 
-| Case | Consumer Configs             | Duration    | TPS     | Max CPU | Memory | Worker Threads |
-|------|------------------------------|-------------|---------|---------|--------|----------------|
-| 1    | AT_MOST_ONCE_BULK           | ~3.019s     | 3.33K   | 13%     | 77 MB  | 360            |
-| 2    | AT_MOST_ONCE_SINGLE         | ~118s       | 85      | 13%     | 77 MB  | 360            |
-| 3    | AT_LEAST_ONCE_BULK          | ~3.067s     | 3.33K   | 13%     | 77 MB  | 360            |
-| 4    | AT_LEAST_ONCE_SINGLE        | ~3.151s     | 3.1K    | 13%     | 77 MB  | 360            |
+| Case | Consumer Configs | Duration | TPS | Max CPU | Memory | Worker Threads |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | AT_MOST_ONCE_BULK | ~3.019s | 3.33K | 13% | 77 MB | 360 |
+| 2 | AT_MOST_ONCE_SINGLE | ~118s | 85 | 13% | 77 MB | 360 |
+| 3 | AT_LEAST_ONCE_BULK | ~3.067s | 3.33K | 13% | 77 MB | 360 |
+| 4 | AT_LEAST_ONCE_SINGLE | ~3.151s | 3.1K | 13% | 77 MB | 360 |
 
 ---
 
 ## 📊 100K Records - Virtual Threads
 
-| Case | Consumer Configs             | Duration    | TPS     | Max CPU | Memory |
-|------|------------------------------|-------------|---------|---------|--------|
-| 1    | AT_MOST_ONCE_BULK           | ~2.595s     | 38.4K   | 24%     | 310 MB |
+| Case | Consumer Configs | Duration | TPS | Max CPU | Memory |
+| --- | --- | --- | --- | --- | --- |
+| 1 | AT_MOST_ONCE_BULK | ~2.595s | 38.4K | 24% | 310 MB |
 
 ---
 
 ## 📊 100K Records - OS Threads
 
-| Case | Consumer Configs             | Duration    | TPS     | Max CPU | Memory | Worker Threads |
-|------|------------------------------|-------------|---------|---------|--------|----------------|
-| 1    | AT_MOST_ONCE_BULK           | ~28.794s    | 3.4K    | 26%     | 290 MB | 360            |
+| Case | Consumer Configs | Duration | TPS | Max CPU | Memory | Worker Threads |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | AT_MOST_ONCE_BULK | ~28.794s | 3.4K | 26% | 290 MB | 360 |
 
 ---
 
@@ -211,13 +206,14 @@ public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder) throws IOExce
             .and()
             .build();
 }
+
 ```
 
 ## Unordered Consumers
 
 ### Single Thread Pool
 
-Order is not guaranteed. 
+Order is not guaranteed.
 Single thread pool consumes all messages coming from all topics listened by the consumer.
 
 ```java
@@ -255,6 +251,7 @@ public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder) throws IOExce
             .and()
             .build();
 }
+
 ```
 
 ### Thread Pool Executor Per Topic
@@ -297,6 +294,7 @@ public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder) throws IOExce
             .and()
             .build();
 }
+
 ```
 
 ### Dynamic Executor Mapping
@@ -347,8 +345,8 @@ public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder) throws IOExce
             .autoPartitionPause(false)
             .build();
 }
-```
 
+```
 
 ### Custom Executor Mapping
 
@@ -397,9 +395,10 @@ public KafkaMessageConsumer consumer(KafkaConsumerBuilder builder) throws IOExce
             .autoPartitionPause(false)
             .build();
 }
+
 ```
 
-### Bulk Message Consumer 
+### Bulk Message Consumer
 
 Supports all features of the single message consumer
 
@@ -438,6 +437,7 @@ final Properties properties = new Properties();
                 .threadStore(consumerThreadStore())
                 .buildBulk();
     }
+
 ```
 
 ### Virtual Thread based Consumer
@@ -469,8 +469,8 @@ return virtualKafkaConsumerBuilder.properties(consumerProperties)
 	.threadStore(consumerThreadStore())
 	.build();
 }
-```
 
+```
 
 ### KafkaListener
 
@@ -492,6 +492,7 @@ public void handle(Message message) {
         throw new RuntimeException("retry test single message consumer without retry");
     }
 }
+
 ```
 
 Sample usage of KafkaListener bulk message without retry
@@ -511,6 +512,7 @@ public void bulkHandleClick(Set<AbstractMessage> messages) {
 	    throw new RuntimeException("retry test bulk message consumer without retry");
 	}
 }
+
 ```
 
 Sample usage of KafkaListener bulk message with in memory retry
@@ -533,8 +535,8 @@ public void bulkHandleInMemoryDoubleClick(Set<AbstractMessage> messages) {
 	}
 }
 
-```
 
+```
 
 @KafkaListener annotation capabilities
 
@@ -580,6 +582,7 @@ NONE,
 RETRY_FROM_BROKER,
 RETRY_IN_MEMORY_TASK
 }
+
 ```
 
 Custom partition key handling for ordering messages (binary message format)
@@ -604,28 +607,23 @@ static class CustomPartitionKeyAwareVirtualExecutorStrategy extends PartitionKey
         }
 
     }
-   ```
- 
+
+```
+
 ## Publishing
 
 To publish a version to maven repository,
-you should create a gradle.properties file in the root directory of this project.
+you should create a global `gradle.properties` file in your home directory (`~/.gradle/gradle.properties`).
 
-The file is: `/path-to-project/gradle.properties`
+This file is kept outside of the repository since it contains sensitive credentials.
 
-This file is included in .gitignore file.
-You should not commit it since it contains sensitive information.
+Add credentials and GPG configurations to your `~/.gradle/gradle.properties` file:
 
-Add credentials for maven repository to `gradle.properties` file.
+```properties
+mavenUsername=YOUR_SONATYPE_USER_TOKEN_NAME
+mavenPassword=YOUR_SONATYPE_USER_TOKEN_PASSWORD
+signing.gnupg.keyName=YOUR_GPG_KEY_ID
 
-Example `gradle.properties` file:
-
-```
-mavenReleaseUrl=https://oss.sonatype.org/service/local/staging/deploy/maven2/
-mavenSnapshotUrl=https://oss.sonatype.org/content/repositories/snapshots/
-mavenUsername=************************
-mavenPassword=************************
-mavenPackageGroup=com.inomera.telco.commons
 ```
 
 Then you need to invoke `release.sh` script in the project root directory.
@@ -641,36 +639,30 @@ Then you need to invoke `release.sh` script in the project root directory.
 
 ./release.sh --release-type major --project $projectName
 # New version is 2.0.0
+
 ```
 
 To publish a snapshot release, use `--snapshot` flag as follows:
 
 ```sh
 ./release.sh --release-type latest --project $projectName --snapshot
+
 ```
 
 Then execute `gradle` `publish` task on the project.
 
-For example, to publish the project `spring-kafka`,
-you need to execute the following command in project root:
+Publish all sub-libraries and close staging repository on Sonatype Central:
+
+```sh
+./gradlew publishToSonatype closeSonatypeStagingRepository
 
 ```
-./gradlew publishToSonatype :spring-kafka:closeSonatypeStagingRepository
-``` 
-
-Publish all libs.
-
-``` 
-./gradlew publishToSonatype closeSonatypeStagingRepository
-``` 
 
 The repository will not allow you to publish the same version twice.
 You need to change version of the artifact every time you want to publish.
 
-You can change version in `build.gradle` file of the sub-project.
-
-```
-build.gradle > publishing > publications > mavenJava > version
-```
-
 Please change the version wisely.
+
+```
+
+```
