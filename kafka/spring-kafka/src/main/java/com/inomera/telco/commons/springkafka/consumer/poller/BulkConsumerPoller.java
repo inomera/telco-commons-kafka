@@ -91,6 +91,10 @@ public class BulkConsumerPoller extends AbstractConsumerPoller<BulkInvokerResult
             final Set<ConsumerRecord<String, ?>> batch = new LinkedHashSet<>(partitionRecords);
             try {
                 track(partition, bulkConsumerRecordHandler.handle(batch));
+                // See DefaultConsumerPoller: a later partition failing its commit must not rewind
+                // this one back over a batch that was already committed and dispatched.
+                advanceRewindTarget(partition,
+                        partitionRecords.get(partitionRecords.size() - 1).offset() + 1);
                 if (isAutoPartitionPause()) {
                     toPause.add(partition);
                 }
@@ -111,6 +115,13 @@ public class BulkConsumerPoller extends AbstractConsumerPoller<BulkInvokerResult
             highest = Math.max(highest, record.offset());
         }
         return highest;
+    }
+
+    @Override
+    protected boolean isCommittable(BulkInvokerResult result) {
+        // The invoker reports failure by handing back the listener annotation; null means the
+        // listener returned normally.
+        return result.getKafkaListener() == null;
     }
 
     @Override

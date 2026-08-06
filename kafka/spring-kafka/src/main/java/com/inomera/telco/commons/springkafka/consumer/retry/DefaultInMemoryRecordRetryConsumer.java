@@ -50,6 +50,7 @@ public class DefaultInMemoryRecordRetryConsumer implements InMemoryRecordRetryCo
     private final Semaphore capacity;
 
     private ExecutorService executorService;
+    private volatile RetryOutcomeListener retryOutcomeListener = RetryOutcomeListener.NO_OP;
 
     public DefaultInMemoryRecordRetryConsumer(ConsumerRecordHandler consumerRecordHandler) {
         this(consumerRecordHandler, RetryPolicy.defaults(), new LoggingDeadLetterHandler());
@@ -62,6 +63,16 @@ public class DefaultInMemoryRecordRetryConsumer implements InMemoryRecordRetryCo
         this.defaultPolicy = defaultPolicy;
         this.deadLetterHandler = deadLetterHandler;
         this.capacity = new Semaphore(defaultPolicy.capacity());
+    }
+
+    @Override
+    public void setRetryOutcomeListener(RetryOutcomeListener listener) {
+        this.retryOutcomeListener = listener == null ? RetryOutcomeListener.NO_OP : listener;
+    }
+
+    @Override
+    public boolean reportsRetryOutcome() {
+        return true;
     }
 
     @Override
@@ -150,12 +161,14 @@ public class DefaultInMemoryRecordRetryConsumer implements InMemoryRecordRetryCo
 
         if (failedAgain) {
             reschedule(retryContext, attempt);
+            return;
         }
+        resolve(record);
     }
 
     private void reschedule(RetryContext context, int attempt) {
         if (attempt >= context.getMaxCount()) {
-            deadLetterHandler.onExhausted(context.getRetry().getRecord(), attempt);
+            deadLetter(context, attempt);
             return;
         }
         final int next = attempt + 1;
@@ -164,10 +177,33 @@ public class DefaultInMemoryRecordRetryConsumer implements InMemoryRecordRetryCo
         if (capacity.tryAcquire()) {
             if (!retryQueue.offer(context)) {
                 capacity.release();
-                deadLetterHandler.onExhausted(context.getRetry().getRecord(), attempt);
+                deadLetter(context, attempt);
             }
         } else {
-            deadLetterHandler.onExhausted(context.getRetry().getRecord(), attempt);
+            deadLetter(context, attempt);
+        }
+    }
+
+    private void deadLetter(RetryContext context, int attempt) {
+        final ConsumerRecord<String, ?> record = context.getRetry().getRecord();
+        deadLetterHandler.onExhausted(record, attempt);
+        // Terminal either way: the dead-letter handler owns the record now, so the poller may
+        // stop withholding the offset. Re-delivering it would only dead-letter it again.
+        resolve(record);
+    }
+
+    /**
+     * Signals that the record is no longer being retried, so its partition can commit again.
+     * Never let a listener failure escape: this runs on the retry thread and an exception here
+     * would kill the drain loop.
+     */
+    private void resolve(ConsumerRecord<String, ?> record) {
+        try {
+            retryOutcomeListener.onRetryResolved(record);
+        } catch (Exception e) {
+            LOG.error("Retry outcome listener failed for {}-{}@{}: {}",
+                    record.topic(), record.partition(), record.offset(), e.getMessage(), e);
+            InterruptUtils.interruptIfInterruptedException(e);
         }
     }
 

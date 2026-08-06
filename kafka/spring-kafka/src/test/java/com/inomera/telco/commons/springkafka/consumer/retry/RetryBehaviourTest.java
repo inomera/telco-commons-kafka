@@ -163,10 +163,86 @@ class RetryBehaviourTest {
                 full, new LoggingDeadLetterHandler());
         final DefaultRecordRetryer retryer = new DefaultRecordRetryer(retryConsumer);
 
-        // First one is accepted, so its offset may advance.
-        assertTrue(retryer.checkAndDecide(failedResult(1L, annotation)));
-        // Capacity is now full: the record must not be silently dropped.
+        // Accepted, but held: the offset only advances once the retry reports back. Since 4.1.4
+        // an accepted retry no longer commits straight away.
+        assertFalse(retryer.checkAndDecide(failedResult(1L, annotation)));
+        // Capacity is now full: the record must not be silently dropped either.
         assertFalse(retryer.checkAndDecide(failedResult(2L, annotation)));
+        assertEquals(1, retryConsumer.pendingRetryCount());
+    }
+
+    @Test
+    @DisplayName("an accepted in-memory retry withholds the offset until it resolves")
+    void inMemoryRetryWithholdsOffsetUntilResolved() throws Exception {
+        final KafkaListener annotation = listener("inMemory");
+        final AtomicInteger attempts = new AtomicInteger();
+        final CountDownLatch resolved = new CountDownLatch(1);
+        final List<Long> resolvedOffsets = new ArrayList<>();
+
+        final DefaultInMemoryRecordRetryConsumer retryConsumer = new DefaultInMemoryRecordRetryConsumer(
+                rec -> {
+                    final InvokerResult result = new InvokerResult(rec);
+                    // Fail once, then succeed.
+                    if (attempts.incrementAndGet() == 1) {
+                        result.setKafkaListener(annotation);
+                    }
+                    return CompletableFuture.completedFuture(result);
+                },
+                new RetryPolicy(5, Duration.ofMillis(10), Duration.ofMillis(50), 2.0d,
+                        Duration.ofSeconds(5), 10),
+                new LoggingDeadLetterHandler());
+        retryConsumer.setRetryOutcomeListener(record -> {
+            synchronized (resolvedOffsets) {
+                resolvedOffsets.add(record.offset());
+            }
+            resolved.countDown();
+        });
+
+        final DefaultRecordRetryer retryer = new DefaultRecordRetryer(retryConsumer);
+
+        retryConsumer.start();
+        try {
+            // Accepted for retry, but the record still only exists in this JVM's heap. Committing
+            // now is what used to lose it on a restart mid-retry.
+            assertFalse(retryer.checkAndDecide(failedResult(11L, annotation)),
+                    "the offset must stay withheld while the retry is pending");
+
+            assertTrue(resolved.await(10, TimeUnit.SECONDS), "expected the retry to report back");
+            assertEquals(List.of(11L), resolvedOffsets);
+        } finally {
+            retryConsumer.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("a retry consumer that cannot report outcomes keeps the pre-4.1.4 commit-on-accept")
+    void legacyRetryConsumerCommitsOnAccept() throws Exception {
+        final KafkaListener annotation = listener("inMemory");
+
+        // A custom implementation written against 4.1.x: it accepts retries but never calls a
+        // RetryOutcomeListener. Withholding here would pin the partition forever.
+        final InMemoryRecordRetryConsumer legacy = new InMemoryRecordRetryConsumer() {
+            @Override
+            public void start() {
+            }
+
+            @Override
+            public void consume(RetryContext retryContext) {
+            }
+
+            @Override
+            public void stop() {
+            }
+
+            @Override
+            public boolean offer(InvokerResult result, RetryPolicy policy) {
+                return true;
+            }
+        };
+
+        assertFalse(legacy.reportsRetryOutcome());
+        assertTrue(new DefaultRecordRetryer(legacy).checkAndDecide(failedResult(3L, annotation)),
+                "without outcome reporting the offset must advance on acceptance");
     }
 
     @Test

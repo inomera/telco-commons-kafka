@@ -9,6 +9,7 @@ import org.apache.kafka.clients.consumer.CommitFailedException;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -28,8 +29,10 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Properties;
 import java.util.Queue;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -67,6 +70,7 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
     private static final long MIN_POLL_WAIT_MS = 30L;
     private static final long MAX_POLL_WAIT_MS = 3_000L;
     private static final long STOP_TIMEOUT_SECONDS = 30L;
+    private static final long REFUSED_COMMIT_BACKOFF_STEP_MS = 50L;
 
     /** A unit of work to run against the consumer on the poller thread. */
     @FunctionalInterface
@@ -82,6 +86,16 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
     private final Map<TopicPartition, ArrayDeque<Future<R>>> inFlight = new HashMap<>();
     /** Poller-thread confined. Offsets waiting to be flushed by the next commitAsync. */
     private final Map<TopicPartition, OffsetAndMetadata> pendingOffsets = new HashMap<>();
+    /**
+     * Poller-thread confined. Offsets whose verdict was "withhold" and that have not been
+     * resolved since. While a partition has an entry here nothing on it may be committed.
+     */
+    private final Map<TopicPartition, NavigableSet<Long>> withheldOffsets = new HashMap<>();
+    /**
+     * Poller-thread confined. Where to resume each partition from if the current poll cycle has
+     * to be abandoned because an at-most-once pre-dispatch commit was refused.
+     */
+    private final Map<TopicPartition, Long> rewindTargets = new HashMap<>();
 
     private final KafkaConsumerProperties kafkaConsumerProperties;
     private final Deserializer<?> valueDeserializer;
@@ -92,6 +106,7 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
     private Consumer<String, ?> consumer;
     private CountDownLatch terminationLatch;
     private boolean commitInFlight;
+    private int consecutiveRefusedCommits;
 
     protected AbstractConsumerPoller(KafkaConsumerProperties kafkaConsumerProperties,
                                      Deserializer<?> valueDeserializer,
@@ -116,12 +131,22 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
     protected abstract long highestOffset(R result);
 
     /**
-     * Called for each completed result before its offset is committed.
+     * Called once for each completed result before its offset is committed. This is where the
+     * retry policy runs, so it has side effects and must never be invoked twice for the same
+     * result.
      *
      * @return {@code false} to withhold this offset (and everything after it on the same
      *         partition) so the broker re-delivers the record later
      */
     protected abstract boolean onResultCompleted(R result);
+
+    /**
+     * Side-effect-free counterpart of {@link #onResultCompleted}: did the listener succeed?
+     *
+     * <p>Used on the rebalance path, where we still want to commit the work that finished but
+     * must not run the retry policy for a partition we are about to hand over.
+     */
+    protected abstract boolean isCommittable(R result);
 
     /** Guards {@link #dispatch} preconditions, mirroring the old {@code Assert} in {@code start()}. */
     protected abstract void assertReadyToStart();
@@ -138,8 +163,11 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
 
         inFlight.clear();
         pendingOffsets.clear();
+        withheldOffsets.clear();
+        rewindTargets.clear();
         commands.clear();
         commitInFlight = false;
+        consecutiveRefusedCommits = 0;
 
         this.consumer = createConsumer();
         this.terminationLatch = new CountDownLatch(1);
@@ -222,9 +250,12 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
                 } else {
                     pollWaitMs = MIN_POLL_WAIT_MS;
                     final Collection<TopicPartition> toPause = new HashSet<>();
+                    resetRewindTargets(records);
                     if (!dispatch(records, toPause)) {
+                        rewindAbandonedCycle();
                         continue;
                     }
+                    consecutiveRefusedCommits = 0;
                     if (autoPartitionPause && !toPause.isEmpty()) {
                         LOG.debug("PAUSED-> {}", toPause);
                         consumer.pause(toPause);
@@ -276,6 +307,15 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
      * asynchronous, so the rejection handler can pause a partition <em>after</em> its last
      * in-flight future has already been reaped; skipping empty partitions here left such a
      * partition paused forever and consumption stopped dead.
+     *
+     * <p>A withheld offset stays withheld. Breaking out of the loop only held the offset back
+     * for the current pass: the withheld future had already been removed, so the next pass
+     * started at the record after it, found it committable and committed straight over the top
+     * of the record we were told not to commit. That is silent message loss, and it is exactly
+     * the case {@code RETRY_FROM_BROKER} exists to prevent. The partition is now pinned instead,
+     * and stays pinned until every withheld offset on it resolves — which for
+     * {@code RETRY_FROM_BROKER} means never, so the records are re-delivered on the next
+     * restart or rebalance.
      */
     private void reapCompleted() {
         if (inFlight.isEmpty()) {
@@ -285,12 +325,15 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
         final Collection<TopicPartition> idle = new HashSet<>();
 
         for (Map.Entry<TopicPartition, ArrayDeque<Future<R>>> entry : inFlight.entrySet()) {
+            final TopicPartition partition = entry.getKey();
             final ArrayDeque<Future<R>> queue = entry.getValue();
             if (queue.isEmpty()) {
-                idle.add(entry.getKey());
+                idle.add(partition);
                 continue;
             }
 
+            // Records keep flowing while a partition is pinned; only its offsets are frozen.
+            boolean pinned = withheldOffsets.containsKey(partition);
             long highestCompleted = -1L;
             // Stop at the first incomplete future: offsets must stay in order.
             for (Iterator<Future<R>> it = queue.iterator(); it.hasNext(); ) {
@@ -304,18 +347,20 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
                     continue;
                 }
                 if (!onResultCompleted(result)) {
-                    // Retry policy asked us to hold this offset back. Nothing after it on this
-                    // partition may be committed either, or we would skip over it.
-                    break;
+                    pinned = true;
+                    withhold(partition, highestOffset(result));
+                    continue;
                 }
-                highestCompleted = Math.max(highestCompleted, highestOffset(result));
+                if (!pinned) {
+                    highestCompleted = Math.max(highestCompleted, highestOffset(result));
+                }
             }
 
             if (highestCompleted >= 0 && kafkaConsumerProperties.isAtLeastOnce()) {
-                markCommittable(entry.getKey(), highestCompleted);
+                markCommittable(partition, highestCompleted);
             }
             if (queue.isEmpty()) {
-                idle.add(entry.getKey());
+                idle.add(partition);
             }
         }
 
@@ -333,12 +378,134 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
         }
     }
 
+    // ------------------------------------------------- abandoned poll cycles
+
+    /**
+     * Marks every partition in the batch as "resume from the first record we just polled".
+     * Subclasses move the mark forward with {@link #advanceRewindTarget} as they commit and
+     * dispatch, so an abandoned cycle rewinds to the first record that was <em>not</em> handled.
+     */
+    private void resetRewindTargets(ConsumerRecords<String, ?> records) {
+        rewindTargets.clear();
+        for (TopicPartition partition : records.partitions()) {
+            final List<? extends ConsumerRecord<String, ?>> partitionRecords = records.records(partition);
+            if (!partitionRecords.isEmpty()) {
+                rewindTargets.put(partition, partitionRecords.get(0).offset());
+            }
+        }
+    }
+
+    /**
+     * Reports that everything before {@code nextOffset} on this partition has been committed and
+     * dispatched, so an abandoned cycle must not rewind past it and hand those records to the
+     * listener a second time.
+     */
+    protected void advanceRewindTarget(TopicPartition partition, long nextOffset) {
+        rewindTargets.merge(partition, nextOffset, Math::max);
+    }
+
+    /**
+     * Puts the fetch position back after an at-most-once pre-dispatch commit was refused.
+     *
+     * <p>{@code poll()} has already advanced the position past everything it returned, so simply
+     * abandoning the cycle threw the batch away: the records were neither committed nor
+     * dispatched, and nothing ever re-read them. That is silent loss on the one strategy whose
+     * users chose it because they cannot reprocess a record. Seeking back makes the next poll
+     * return the same records so the commit can be attempted again — and because the target only
+     * ever moves forward as records are committed and dispatched, nothing is delivered twice.
+     */
+    private void rewindAbandonedCycle() {
+        final Collection<TopicPartition> assigned = consumer.assignment();
+        for (Map.Entry<TopicPartition, Long> entry : rewindTargets.entrySet()) {
+            if (!assigned.contains(entry.getKey())) {
+                // Revoked in the meantime; the new owner resumes from the committed offset.
+                continue;
+            }
+            try {
+                consumer.seek(entry.getKey(), entry.getValue());
+            } catch (Exception e) {
+                LOG.error("Could not rewind {} to {} after a refused commit; those records will be "
+                        + "skipped: {}", entry.getKey(), entry.getValue(), e.getMessage(), e);
+                InterruptUtils.interruptIfInterruptedException(e);
+            }
+        }
+        backOffAfterRefusedCommit();
+    }
+
+    /**
+     * Keeps a coordinator that is refusing commits from being hammered. Without it the loop spins
+     * poll → commit → seek as fast as the network allows.
+     */
+    private void backOffAfterRefusedCommit() {
+        final long backoffMillis = Math.min(REFUSED_COMMIT_BACKOFF_STEP_MS * ++consecutiveRefusedCommits,
+                MAX_POLL_WAIT_MS);
+        if (consecutiveRefusedCommits == 1 || consecutiveRefusedCommits % 20 == 0) {
+            LOG.warn("Pre-dispatch commit refused {} time(s) in a row for {}; rewound and backing off {}ms.",
+                    consecutiveRefusedCommits, kafkaConsumerProperties.getGroupId(), backoffMillis);
+        }
+        try {
+            Thread.sleep(backoffMillis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     // --------------------------------------------------------------- offsets
 
-    /** Records the highest committable offset for a partition; flushed later in the cycle. */
+    /**
+     * Records the highest committable offset for a partition; flushed later in the cycle.
+     *
+     * <p>Anything at or after the earliest unresolved offset on the partition is dropped:
+     * committing it would tell the broker that the withheld record was consumed. Offsets
+     * strictly before it are still fine and worth keeping — they are the work that genuinely
+     * completed before things went wrong.
+     */
     protected void markCommittable(TopicPartition partition, long offset) {
+        final NavigableSet<Long> withheld = withheldOffsets.get(partition);
+        if (withheld != null && !withheld.isEmpty() && offset >= withheld.first()) {
+            return;
+        }
         pendingOffsets.merge(partition, new OffsetAndMetadata(offset + 1),
                 (current, candidate) -> candidate.offset() > current.offset() ? candidate : current);
+    }
+
+    /** Pins a partition's committed offset at {@code offset} until that record resolves. */
+    private void withhold(TopicPartition partition, long offset) {
+        final NavigableSet<Long> offsets = withheldOffsets.computeIfAbsent(partition, key -> new TreeSet<>());
+        if (offsets.add(offset) && offsets.size() == 1) {
+            LOG.warn("Withholding offsets for {} from {} onward for group {}. Consumer lag on this "
+                            + "partition will not decrease until the record resolves or the consumer restarts.",
+                    partition, offset, kafkaConsumerProperties.getGroupId());
+        }
+    }
+
+    /**
+     * Reports that a previously withheld record finally resolved, so its partition may commit
+     * again. Callable from any thread: the release runs on the poller thread.
+     *
+     * <p>"Resolved" means terminal, not successful — a dead-lettered record is resolved too,
+     * because the dead-letter handler has taken ownership of it.
+     */
+    public void releaseWithheldOffset(TopicPartition partition, long offset) {
+        commands.offer(consumer -> {
+            final NavigableSet<Long> offsets = withheldOffsets.get(partition);
+            if (offsets == null || !offsets.remove(offset)) {
+                return;
+            }
+            if (offsets.isEmpty()) {
+                withheldOffsets.remove(partition);
+                LOG.info("Offset {} on {} resolved; commits resume for this partition.", offset, partition);
+            }
+        });
+        final Consumer<String, ?> current = this.consumer;
+        if (current != null) {
+            current.wakeup();
+        }
+    }
+
+    /** Convenience overload for callers that only hold the record. */
+    public void releaseWithheldOffset(ConsumerRecord<String, ?> record) {
+        releaseWithheldOffset(new TopicPartition(record.topic(), record.partition()), record.offset());
     }
 
     private void flushPendingOffsets() {
@@ -372,9 +539,21 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
         if (pendingOffsets.isEmpty() || consumer == null) {
             return;
         }
+        final Map<TopicPartition, OffsetAndMetadata> batch = Map.copyOf(pendingOffsets);
         try {
-            consumer.commitSync(Map.copyOf(pendingOffsets));
+            consumer.commitSync(batch);
             pendingOffsets.clear();
+        } catch (WakeupException e) {
+            // stop() wakes the consumer up before we get here, so the shutdown commit is the
+            // most likely victim. The flag is consumed by the throw, so one retry is enough.
+            try {
+                consumer.commitSync(batch);
+                pendingOffsets.clear();
+            } catch (Exception retryFailure) {
+                LOG.error("Final offset commit failed for {} after a wakeup: {}",
+                        kafkaConsumerProperties.getClientId(), retryFailure.getMessage(), retryFailure);
+                InterruptUtils.interruptIfInterruptedException(retryFailure);
+            }
         } catch (Exception e) {
             LOG.error("Final offset commit failed for {}: {}",
                     kafkaConsumerProperties.getClientId(), e.getMessage(), e);
@@ -382,25 +561,92 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
         }
     }
 
-    /** Synchronous commit used by the at-most-once strategies, which must commit before dispatch. */
+    /**
+     * Synchronous commit used by the at-most-once strategies, which must commit before dispatch.
+     *
+     * <p>{@code wakeup()} interrupts <em>any</em> blocking consumer call, not just {@code poll},
+     * so a {@link #pause} issued from another thread can land here. Only
+     * {@code CommitFailedException} used to be caught, which let the {@code WakeupException}
+     * unwind the poll loop and kill the poller.
+     */
     protected boolean commitSyncBeforeProcessing(TopicPartition partition, long offset) {
+        final Map<TopicPartition, OffsetAndMetadata> batch =
+                Map.of(partition, new OffsetAndMetadata(offset + 1));
         try {
-            consumer.commitSync(Map.of(partition, new OffsetAndMetadata(offset + 1)));
+            consumer.commitSync(batch);
+            return true;
+        } catch (WakeupException e) {
+            if (!retryAfterWakeup(() -> consumer.commitSync(batch))) {
+                LOG.debug("Commit for {}@{} abandoned after a wakeup.", partition, offset);
+                return false;
+            }
             return true;
         } catch (CommitFailedException e) {
-            LOG.error("Offset commit failed for {}. partition={}, offset={}",
-                    kafkaConsumerProperties.getClientId(), partition, offset, e);
+            LOG.warn("Offset commit refused for {}. partition={}, offset={}: {}",
+                    kafkaConsumerProperties.getClientId(), partition, offset, e.getMessage());
+            return false;
+        } catch (Exception e) {
+            // Anything else — a TimeoutException while the coordinator is unreachable is the
+            // common one — used to escape dispatch(), unwind the poll loop and kill the poller.
+            LOG.error("Offset commit failed for {}. partition={}, offset={}: {}",
+                    kafkaConsumerProperties.getClientId(), partition, offset, e.getMessage(), e);
+            InterruptUtils.interruptIfInterruptedException(e);
             return false;
         }
     }
 
-    /** Synchronous bulk commit used by {@code AT_MOST_ONCE_BULK}. */
+    /** Synchronous bulk commit used by {@code AT_MOST_ONCE_BULK}. See {@link #commitSyncBeforeProcessing}. */
     protected boolean commitAllSyncBeforeProcessing() {
         try {
             consumer.commitSync();
             return true;
+        } catch (WakeupException e) {
+            if (!retryAfterWakeup(() -> consumer.commitSync())) {
+                LOG.debug("Bulk commit abandoned after a wakeup.");
+                return false;
+            }
+            return true;
         } catch (CommitFailedException e) {
-            LOG.info("Committing last offsets failed for {}.", kafkaConsumerProperties.getClientId(), e);
+            // WARN, not INFO with a stack trace: this refuses a whole poll batch. The usual cause
+            // under group.protocol=consumer is STALE_MEMBER_EPOCH, which the client does not
+            // retry for us — StaleMemberEpochException is an ApiException, not a
+            // RetriableException, so commitSync gives up on the first response.
+            LOG.warn("Committing last offsets refused for {}: {}. Rewinding and retrying.",
+                    kafkaConsumerProperties.getClientId(), e.getMessage());
+            return false;
+        } catch (Exception e) {
+            LOG.error("Committing last offsets failed for {}: {}",
+                    kafkaConsumerProperties.getClientId(), e.getMessage(), e);
+            InterruptUtils.interruptIfInterruptedException(e);
+            return false;
+        }
+    }
+
+    /**
+     * Re-runs a commit that a {@code wakeup()} interrupted.
+     *
+     * <p>An at-most-once commit that gives up takes the rest of the poll batch with it: those
+     * records were already fetched, so the consumer's position has moved past them and nothing
+     * re-delivers them until a rebalance. The wakeup flag is consumed by the throw, so a single
+     * retry gets the commit through, and the command that triggered the wakeup is still drained
+     * at the top of the next iteration.
+     *
+     * <p>While stopping there is nothing to salvage — the batch is not going to be dispatched
+     * anyway — so the retry is skipped and shutdown is not delayed by a commit round trip.
+     *
+     * @return {@code true} if the retry committed
+     */
+    private boolean retryAfterWakeup(Runnable commit) {
+        if (!running.get()) {
+            return false;
+        }
+        try {
+            commit.run();
+            return true;
+        } catch (Exception e) {
+            LOG.error("Offset commit for {} failed on the retry after a wakeup: {}",
+                    kafkaConsumerProperties.getClientId(), e.getMessage(), e);
+            InterruptUtils.interruptIfInterruptedException(e);
             return false;
         }
     }
@@ -422,7 +668,8 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
         if (kafkaConsumerProperties.isAtLeastOnce()) {
             for (TopicPartition partition : partitionsRevoked) {
                 final ArrayDeque<Future<R>> queue = inFlight.get(partition);
-                if (queue == null) {
+                if (queue == null || withheldOffsets.containsKey(partition)) {
+                    // Pinned partitions commit nothing, here least of all.
                     continue;
                 }
                 for (Future<R> future : queue) {
@@ -430,14 +677,26 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
                         break;
                     }
                     final R result = FutureUtils.getUnchecked(future);
-                    if (result != null) {
-                        markCommittable(partition, highestOffset(result));
+                    if (result == null) {
+                        continue;
                     }
+                    // isCommittable, not onResultCompleted: this path used to commit failed
+                    // records because it never asked whether the listener actually succeeded,
+                    // so a rebalance landing on a failure committed straight over it. Running
+                    // the full retry hook here is not an option either — it would schedule a
+                    // retry for a partition we are in the middle of handing over.
+                    if (!isCommittable(result)) {
+                        break;
+                    }
+                    markCommittable(partition, highestOffset(result));
                 }
             }
             commitPendingSync();
         }
-        partitionsRevoked.forEach(inFlight::remove);
+        partitionsRevoked.forEach(partition -> {
+            inFlight.remove(partition);
+            withheldOffsets.remove(partition);
+        });
         LOG.info("REVOKED-> {}", partitionsRevoked);
     }
 
@@ -448,6 +707,7 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
         partitionsLost.forEach(partition -> {
             inFlight.remove(partition);
             pendingOffsets.remove(partition);
+            withheldOffsets.remove(partition);
         });
         LOG.warn("LOST-> {}", partitionsLost);
     }

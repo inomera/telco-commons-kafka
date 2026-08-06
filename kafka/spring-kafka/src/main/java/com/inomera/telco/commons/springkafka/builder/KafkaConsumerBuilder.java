@@ -42,6 +42,8 @@ public class KafkaConsumerBuilder {
     private ConsumerThreadStore threadStore;
     private InMemoryBulkRecordRetryConsumer inMemoryBulkRecordRetryConsumer;
     private InMemoryRecordRetryConsumer inMemoryRecordConsumer;
+    private boolean serverSideRebalance;
+    private String remoteAssignor;
 
     private KafkaConsumerBuilder(ListenerMethodRegistry listenerMethodRegistry) {
         Assert.notNull(listenerMethodRegistry, "listenerMethodRegistry is null");
@@ -144,11 +146,24 @@ public class KafkaConsumerBuilder {
     /**
      * Delegates rebalancing to the broker, asking for a specific server-side assignor.
      *
+     * <p>The request is recorded and applied when the consumer is built, not here. Applying it
+     * eagerly made the call order-sensitive: {@code properties(props)} replaces the whole
+     * {@code Properties} instance, so {@code .serverSideRebalance().properties(props)} silently
+     * dropped {@code group.protocol} and the consumer came up on the classic protocol with no
+     * indication that anything was wrong.
+     *
      * @param remoteAssignor {@code uniform} or {@code range}; {@code null} leaves the broker default
      */
     public KafkaConsumerBuilder serverSideRebalance(String remoteAssignor) {
-        GroupProtocol.enable(this.properties, remoteAssignor);
+        this.serverSideRebalance = true;
+        this.remoteAssignor = remoteAssignor;
         return this;
+    }
+
+    private void applyGroupProtocolIfRequested() {
+        if (serverSideRebalance) {
+            GroupProtocol.enable(this.properties, remoteAssignor);
+        }
     }
 
     public KafkaConsumerBuilder autoPartitionPause(boolean autoPartitionPause) {
@@ -179,6 +194,7 @@ public class KafkaConsumerBuilder {
         Assert.notNull(offsetCommitStrategy, "offsetCommitStrategy is null");
         Assert.notNull(properties, "properties is null");
         Assert.notNull(valueDeserializer, "valueDeserializer is null");
+        applyGroupProtocolIfRequested();
 
         final KafkaConsumerProperties properties = new KafkaConsumerProperties(groupId, topics, topicPattern,
                 offsetCommitStrategy, this.properties);
@@ -188,6 +204,9 @@ public class KafkaConsumerBuilder {
         consumerPoller.setConsumerThreadFactory(getWrappedThreadFactory(consumerPoller));
         final ConsumerInvoker invoker = consumerInvokerBuilder.build(consumerPoller, groupId);
         this.inMemoryRecordConsumer = this.inMemoryRecordConsumer == null ? new DefaultInMemoryRecordRetryConsumer(invoker::invoke) : this.inMemoryRecordConsumer;
+        // Let the retry consumer tell the poller when a retry is done, so the poller can keep
+        // the offset withheld until then instead of committing a record that only exists in RAM.
+        this.inMemoryRecordConsumer.setRetryOutcomeListener(consumerPoller::releaseWithheldOffset);
         // Wire the retryer to this consumer's own retry queue. It used to reach a static queue
         // shared by every consumer in the JVM, so retries could run against the wrong group.
         consumerPoller.setRecordRetryer(new DefaultRecordRetryer(this.inMemoryRecordConsumer));
@@ -199,6 +218,7 @@ public class KafkaConsumerBuilder {
         Assert.notNull(offsetCommitStrategy, "offsetCommitStrategy is null");
         Assert.notNull(properties, "properties is null");
         Assert.notNull(valueDeserializer, "valueDeserializer is null");
+        applyGroupProtocolIfRequested();
 
         final KafkaConsumerProperties properties = new KafkaConsumerProperties(groupId, topics, topicPattern,
                 offsetCommitStrategy, this.properties);
@@ -208,6 +228,7 @@ public class KafkaConsumerBuilder {
         bulkConsumerPoller.setConsumerThreadFactory(getWrappedThreadFactory(bulkConsumerPoller));
         final BulkConsumerInvoker bulkConsumerInvoker = consumerInvokerBuilder.buildBulk(bulkConsumerPoller, groupId);
         this.inMemoryBulkRecordRetryConsumer = this.inMemoryBulkRecordRetryConsumer == null ? new DefaultInMemoryBulkRecordRetryConsumer(bulkConsumerInvoker::invoke) : this.inMemoryBulkRecordRetryConsumer;
+        this.inMemoryBulkRecordRetryConsumer.setRetryOutcomeListener(bulkConsumerPoller::releaseWithheldOffset);
         bulkConsumerPoller.setBulkRecordRetryer(new DefaultBulkRecordRetryer(this.inMemoryBulkRecordRetryConsumer));
         return new BulkSmartKafkaMessageConsumer(bulkConsumerPoller, bulkConsumerInvoker, this.inMemoryBulkRecordRetryConsumer);
     }
