@@ -19,4 +19,17 @@ public interface InMemoryBulkRecordRetryConsumer {
     default boolean offer(BulkInvokerResult result, RetryPolicy policy) {
         return false;
     }
+
+    /**
+     * Registers the callback fired when a retried batch reaches a terminal state.
+     * Implementations that honour it must also override {@link #reportsRetryOutcome()}.
+     */
+    default void setRetryOutcomeListener(RetryOutcomeListener listener) {
+        // no-op
+    }
+
+    /** See {@link InMemoryRecordRetryConsumer#reportsRetryOutcome()}. */
+    default boolean reportsRetryOutcome() {
+        return false;
+    }
 }

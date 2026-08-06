@@ -40,6 +40,8 @@ public class VirtualKafkaConsumerBuilder {
     private ConsumerThreadStore threadStore;
     private InMemoryBulkRecordRetryConsumer inMemoryBulkRecordRetryConsumer;
     private InMemoryRecordRetryConsumer inMemoryRecordConsumer;
+    private boolean serverSideRebalance;
+    private String remoteAssignor;
 
     private VirtualKafkaConsumerBuilder(ListenerMethodRegistry listenerMethodRegistry) {
         Assert.notNull(listenerMethodRegistry, "listenerMethodRegistry is null");
@@ -142,11 +144,22 @@ public class VirtualKafkaConsumerBuilder {
     /**
      * Delegates rebalancing to the broker, asking for a specific server-side assignor.
      *
+     * <p>Applied at build time, not here: {@code properties(props)} replaces the whole
+     * {@code Properties} instance, so applying it eagerly made the call order-sensitive and
+     * {@code .serverSideRebalance().properties(props)} silently fell back to the classic protocol.
+     *
      * @param remoteAssignor {@code uniform} or {@code range}; {@code null} leaves the broker default
      */
     public VirtualKafkaConsumerBuilder serverSideRebalance(String remoteAssignor) {
-        GroupProtocol.enable(this.properties, remoteAssignor);
+        this.serverSideRebalance = true;
+        this.remoteAssignor = remoteAssignor;
         return this;
+    }
+
+    private void applyGroupProtocolIfRequested() {
+        if (serverSideRebalance) {
+            GroupProtocol.enable(this.properties, remoteAssignor);
+        }
     }
 
     public VirtualKafkaConsumerBuilder autoPartitionPause(boolean autoPartitionPause) {
@@ -183,6 +196,7 @@ public class VirtualKafkaConsumerBuilder {
         Assert.notNull(offsetCommitStrategy, "offsetCommitStrategy is null");
         Assert.notNull(properties, "properties is null");
         Assert.notNull(valueDeserializer, "valueDeserializer is null");
+        applyGroupProtocolIfRequested();
 
         final KafkaConsumerProperties properties = new KafkaConsumerProperties(groupId, topics, topicPattern,
                 offsetCommitStrategy, this.properties);
@@ -192,6 +206,7 @@ public class VirtualKafkaConsumerBuilder {
         consumerPoller.setConsumerThreadFactory(getWrappedThreadFactory(consumerPoller));
         final ConsumerInvoker invoker = virtualConsumerInvokerBuilder.build(consumerPoller, groupId);
         this.inMemoryRecordConsumer = this.inMemoryRecordConsumer == null ? new DefaultInMemoryRecordRetryConsumer(invoker::invoke) : this.inMemoryRecordConsumer;
+        this.inMemoryRecordConsumer.setRetryOutcomeListener(consumerPoller::releaseWithheldOffset);
         consumerPoller.setRecordRetryer(new DefaultRecordRetryer(this.inMemoryRecordConsumer));
         return new SmartKafkaMessageConsumer(consumerPoller, invoker, this.inMemoryRecordConsumer);
     }
@@ -201,6 +216,7 @@ public class VirtualKafkaConsumerBuilder {
         Assert.notNull(offsetCommitStrategy, "offsetCommitStrategy is null");
         Assert.notNull(properties, "properties is null");
         Assert.notNull(valueDeserializer, "valueDeserializer is null");
+        applyGroupProtocolIfRequested();
 
         final KafkaConsumerProperties properties = new KafkaConsumerProperties(groupId, topics, topicPattern,
                 offsetCommitStrategy, this.properties);
@@ -210,6 +226,7 @@ public class VirtualKafkaConsumerBuilder {
         bulkConsumerPoller.setConsumerThreadFactory(getWrappedThreadFactory(bulkConsumerPoller));
         final BulkConsumerInvoker bulkConsumerInvoker = virtualConsumerInvokerBuilder.buildBulk(bulkConsumerPoller, groupId);
         this.inMemoryBulkRecordRetryConsumer = this.inMemoryBulkRecordRetryConsumer == null ? new DefaultInMemoryBulkRecordRetryConsumer(bulkConsumerInvoker::invoke) : this.inMemoryBulkRecordRetryConsumer;
+        this.inMemoryBulkRecordRetryConsumer.setRetryOutcomeListener(bulkConsumerPoller::releaseWithheldOffset);
         bulkConsumerPoller.setBulkRecordRetryer(new DefaultBulkRecordRetryer(this.inMemoryBulkRecordRetryConsumer));
         return new BulkSmartKafkaMessageConsumer(bulkConsumerPoller, bulkConsumerInvoker, this.inMemoryBulkRecordRetryConsumer);
     }

@@ -10,6 +10,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.MockConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,10 +24,15 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -44,7 +50,7 @@ class ConsumerPollerTest {
 
     // ------------------------------------------------------------- fixtures
 
-    private static final class TestableConsumerPoller extends DefaultConsumerPoller {
+    private static class TestableConsumerPoller extends DefaultConsumerPoller {
         private final Consumer<String, ?> delegate;
 
         TestableConsumerPoller(KafkaConsumerProperties properties, Consumer<String, ?> delegate) {
@@ -55,6 +61,43 @@ class ConsumerPollerTest {
         @Override
         protected Consumer<String, ?> createConsumer() {
             return delegate;
+        }
+    }
+
+    /**
+     * Withholds the offsets it is told to, exactly as a {@code RETRY_FROM_BROKER} verdict would,
+     * and records every verdict it was asked for so a test can tell "not yet reaped" apart from
+     * "reaped and pinned".
+     */
+    private static final class WithholdingConsumerPoller extends TestableConsumerPoller {
+        private final Set<Long> offsetsToWithhold;
+        private final Set<Long> verdicts = ConcurrentHashMap.newKeySet();
+
+        WithholdingConsumerPoller(KafkaConsumerProperties properties, Consumer<String, ?> delegate,
+                                  Set<Long> offsetsToWithhold) {
+            super(properties, delegate);
+            this.offsetsToWithhold = offsetsToWithhold;
+        }
+
+        @Override
+        protected boolean onResultCompleted(InvokerResult result) {
+            final long offset = result.getRecord().offset();
+            verdicts.add(offset);
+            return !offsetsToWithhold.contains(offset);
+        }
+    }
+
+    private static WithholdingConsumerPoller withholdingPoller(MockConsumer<String, Object> consumer,
+                                                               Set<Long> offsetsToWithhold) {
+        return new WithholdingConsumerPoller(properties(OffsetCommitStrategy.AT_LEAST_ONCE_SINGLE),
+                consumer, offsetsToWithhold);
+    }
+
+    private static void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -277,6 +320,168 @@ class ConsumerPollerTest {
             await("pause to be applied", () -> consumer.pausedPartitions.contains(P1));
 
             await("the idle partition to be resumed", () -> !consumer.paused().contains(P1));
+        } finally {
+            poller.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("a withheld offset stays withheld: later records must not be committed over it")
+    void withheldOffsetIsNeverCommittedOver() {
+        final MockConsumer<String, Object> consumer = new MockConsumer<>("earliest");
+        consumer.updateBeginningOffsets(Map.of(P0, 0L));
+
+        // Offset 1 is refused; 0 completed cleanly before it and 2 completes after it.
+        final WithholdingConsumerPoller poller = withholdingPoller(consumer, Set.of(1L));
+        poller.setConsumerRecordHandler(rec -> CompletableFuture.completedFuture(new InvokerResult(rec)));
+
+        consumer.schedulePollTask(() -> {
+            consumer.rebalance(List.of(P0));
+            consumer.addRecord(record(P0, 0));
+            consumer.addRecord(record(P0, 1));
+            consumer.addRecord(record(P0, 2));
+        });
+
+        poller.start();
+        try {
+            // Everything before the withheld record is still committable: next fetch is offset 1.
+            await("the prefix before the withheld record to be committed",
+                    () -> committedOffset(consumer, P0) == 1L);
+
+            // Give the loop plenty of cycles to get it wrong. Before 4.1.4 the break only held
+            // the offset for one pass, so the next pass committed 3 and offset 1 was lost.
+            sleepQuietly(500);
+            assertEquals(1L, committedOffset(consumer, P0),
+                    "offset 1 was withheld, so nothing after it may be committed");
+        } finally {
+            poller.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("releasing a withheld offset lets the partition commit again")
+    void releasingAWithheldOffsetResumesCommits() {
+        final MockConsumer<String, Object> consumer = new MockConsumer<>("earliest");
+        consumer.updateBeginningOffsets(Map.of(P0, 0L));
+
+        final WithholdingConsumerPoller poller = withholdingPoller(consumer, Set.of(0L));
+        poller.setConsumerRecordHandler(rec -> CompletableFuture.completedFuture(new InvokerResult(rec)));
+
+        consumer.schedulePollTask(() -> {
+            consumer.rebalance(List.of(P0));
+            consumer.addRecord(record(P0, 0));
+        });
+
+        poller.start();
+        try {
+            await("the partition to be pinned", () -> poller.verdicts.contains(0L));
+            sleepQuietly(200);
+            assertEquals(-1L, committedOffset(consumer, P0), "the pinned record must not be committed");
+
+            // This is what the in-memory retry consumer calls once a retry finally resolves.
+            poller.releaseWithheldOffset(P0, 0L);
+            consumer.schedulePollTask(() -> consumer.addRecord(record(P0, 1)));
+
+            await("commits to resume after the release", () -> committedOffset(consumer, P0) == 2L);
+        } finally {
+            poller.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("revoking a pinned partition does not commit over the withheld record")
+    void revokeDoesNotCommitOverAWithheldRecord() throws Exception {
+        final MockConsumer<String, Object> consumer = new MockConsumer<>("earliest");
+        consumer.updateBeginningOffsets(Map.of(P0, 0L));
+
+        final WithholdingConsumerPoller poller = withholdingPoller(consumer, Set.of(1L));
+        poller.setConsumerRecordHandler(rec -> CompletableFuture.completedFuture(new InvokerResult(rec)));
+
+        consumer.schedulePollTask(() -> {
+            consumer.rebalance(List.of(P0));
+            consumer.addRecord(record(P0, 0));
+            consumer.addRecord(record(P0, 1));
+            consumer.addRecord(record(P0, 2));
+        });
+
+        poller.start();
+        try {
+            await("the prefix before the withheld record to be committed",
+                    () -> committedOffset(consumer, P0) == 1L);
+            await("offset 2 to have been reaped", () -> poller.verdicts.contains(2L));
+
+            // onPartitionsRevoked walked the in-flight queue and committed whatever had finished
+            // without ever asking whether it succeeded, so a handover landing here committed
+            // straight over the record we were told to hold back.
+            final CountDownLatch revoked = new CountDownLatch(1);
+            consumer.schedulePollTask(() -> {
+                poller.onPartitionsRevoked(List.of(P0));
+                revoked.countDown();
+            });
+            assertTrue(revoked.await(10, TimeUnit.SECONDS), "revoke callback never ran");
+
+            assertEquals(1L, committedOffset(consumer, P0),
+                    "the revoke path must not commit past a withheld offset");
+        } finally {
+            poller.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("AT_MOST_ONCE_BULK survives a commit that times out, and loses no records")
+    void atMostOnceSurvivesACommitTimeout() {
+        // What a coordinator outage actually throws at the pre-dispatch commit. Only
+        // CommitFailedException was caught, so this escaped dispatch(), unwound the poll loop
+        // and killed the poller — on the one commit strategy that cannot fall back to
+        // reprocessing, because its whole point is that records are never handled twice.
+        final AtomicInteger commitCalls = new AtomicInteger();
+        final AtomicBoolean commitsFail = new AtomicBoolean(true);
+        final MockConsumer<String, Object> consumer = new MockConsumer<>("earliest") {
+            @Override
+            public synchronized void commitSync() {
+                commitCalls.incrementAndGet();
+                if (commitsFail.get()) {
+                    throw new TimeoutException("coordinator unavailable");
+                }
+                super.commitSync();
+            }
+        };
+        consumer.updateBeginningOffsets(Map.of(P0, 0L));
+
+        final Set<Long> delivered = ConcurrentHashMap.newKeySet();
+        final TestableConsumerPoller poller =
+                new TestableConsumerPoller(properties(OffsetCommitStrategy.AT_MOST_ONCE_BULK), consumer);
+        poller.setConsumerRecordHandler(rec -> {
+            delivered.add(rec.offset());
+            return CompletableFuture.completedFuture(new InvokerResult(rec));
+        });
+
+        consumer.schedulePollTask(() -> {
+            consumer.rebalance(List.of(P0));
+            consumer.addRecord(record(P0, 0));
+            consumer.addRecord(record(P0, 1));
+        });
+
+        poller.start();
+        try {
+            await("the commit to be attempted and refused", () -> commitCalls.get() >= 1);
+
+            // Nothing may have been handed to the listener: at-most-once dispatches only after
+            // the commit is durable.
+            assertTrue(delivered.isEmpty(), "records were dispatched despite the commit failing");
+            // And the loop has to still be running. shouldRestart() is running && closed, i.e.
+            // "the loop exited while it was still supposed to be going".
+            assertFalse(poller.shouldRestart(), "the commit failure killed the poll loop");
+
+            // Once the coordinator is back, the consumer must carry on rather than sit dead.
+            commitsFail.set(false);
+            consumer.schedulePollTask(() -> {
+                consumer.addRecord(record(P0, 2));
+                consumer.addRecord(record(P0, 3));
+            });
+            await("consumption to resume after the coordinator recovers",
+                    () -> delivered.containsAll(Set.of(2L, 3L)));
+            assertFalse(poller.shouldRestart(), "the poll loop exited after recovering");
         } finally {
             poller.stop();
         }
