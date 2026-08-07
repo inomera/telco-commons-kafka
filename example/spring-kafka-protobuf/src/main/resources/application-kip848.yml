@@ -1,0 +1,98 @@
+# Broker-side rebalancing (KIP-848) driven entirely from configuration.
+#
+# Run against the compose cluster with:
+#   ./gradlew :spring-kafka-protobuf:bootRun --args='--spring.profiles.active=kip848'
+#
+# The only difference from the `docker` profile is one line per consumer:
+#
+#   group.protocol=consumer
+#
+# Nothing in the application calls serverSideRebalance(); the consumers are built with
+# `.properties(...)` straight out of this file, which is how the setting reaches the library in
+# a real deployment.
+#
+# session.timeout.ms, heartbeat.interval.ms and partition.assignment.strategy are left in on
+# purpose. The client rejects all three alongside group.protocol=consumer with
+#
+#   ConfigException: heartbeat.interval.ms, session.timeout.ms cannot be set when
+#                    group.protocol=CONSUMER
+#
+# and before 4.1.5 that is exactly what happened: the library only stripped them when
+# serverSideRebalance() was called in code, so a yml-configured consumer died at construction and
+# the application never started. Leaving them here proves the library now removes them itself.
+# Look for this line at startup:
+#
+#   WARN  group.protocol=consumer delegates rebalancing to the broker, which rejects
+#         [session.timeout.ms, heartbeat.interval.ms]. Removed them; the broker's own timeouts
+#         apply instead.
+#
+# The broker equivalents are group.consumer.session.timeout.ms and
+# group.consumer.heartbeat.interval.ms. max.poll.interval.ms stays a client setting and still
+# matters.
+spring:
+  docker:
+    compose:
+      lifecycle-management: start_and_stop
+      start:
+        command: up
+      stop:
+        command: down
+        timeout: 10s
+      file: docker-compose.yml
+
+kafka-producers:
+  default:
+    properties: |
+      max.request.size=15728640
+      bootstrap.servers=localhost:10000,localhost:20000,localhost:30000
+      enable.idempotence=true
+      retries=2147483647
+      max.in.flight.requests.per.connection=1
+      acks=all
+      linger.ms=5
+      metadata.max.age.ms=10000
+      compression.type=lz4
+      transaction.timeout.ms=10000
+
+kafka-consumers:
+  default:
+    properties: |-
+      bootstrap.servers=localhost:10000,localhost:20000,localhost:30000
+      group.protocol=consumer
+      group.remote.assignor=uniform
+      metadata.max.age.ms=10000
+      enable.auto.commit=false
+      auto.offset.reset=earliest
+      heartbeat.interval.ms=10000
+      request.timeout.ms=31000
+      session.timeout.ms=30000
+      max.poll.records=1000
+      reconnect.backoff.ms=5000
+      reconnect.backoff.max.ms=9223372036854775806
+      partition.number=6
+    number-of-invoker-threads: 6
+    offset-commit-strategy: AT_MOST_ONCE_BULK
+    pollerThreadProperties: |-
+      poller.thread.checker.active=true
+      poller.thread.checker.initialDelaySec=5
+      poller.thread.checker.retryAsSec=30
+  retry:
+    properties: |-
+      bootstrap.servers=localhost:10000,localhost:20000,localhost:30000
+      group.protocol=consumer
+      group.remote.assignor=uniform
+      metadata.max.age.ms=10000
+      enable.auto.commit=false
+      auto.offset.reset=earliest
+      heartbeat.interval.ms=10000
+      request.timeout.ms=31000
+      session.timeout.ms=30000
+      max.poll.records=100
+      reconnect.backoff.ms=5000
+      reconnect.backoff.max.ms=9223372036854775806
+    number-of-invoker-threads: 2
+    offset-commit-strategy: AT_LEAST_ONCE_BULK
+    pollerThreadProperties: |-
+      poller.thread.checker.active=true
+      poller.thread.checker.initialDelaySec=5
+      poller.thread.checker.retryAsSec=30
