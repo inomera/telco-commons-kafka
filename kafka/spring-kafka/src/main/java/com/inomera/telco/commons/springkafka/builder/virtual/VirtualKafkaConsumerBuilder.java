@@ -160,6 +160,9 @@ public class VirtualKafkaConsumerBuilder {
         if (serverSideRebalance) {
             GroupProtocol.enable(this.properties, remoteAssignor);
         }
+        // group.protocol=consumer supplied through application.yml is normalised by
+        // AbstractConsumerPoller.buildConsumerProperties(), so every entry point is covered and
+        // not just this builder.
     }
 
     public VirtualKafkaConsumerBuilder autoPartitionPause(boolean autoPartitionPause) {

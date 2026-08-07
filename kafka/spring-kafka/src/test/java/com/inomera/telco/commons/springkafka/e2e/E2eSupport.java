@@ -6,7 +6,6 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.OffsetSpec;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -138,15 +137,76 @@ final class E2eSupport {
 
     // -------------------------------------------------------------- consumer
 
-    /** Consumer properties tuned for fast, deterministic tests. */
+     /**
+     * Consumer properties for the tests, read from {@code e2e-kafka.yml}.
+     *
+     * <p>Loaded from a file rather than built in code on purpose: in a real deployment these
+     * settings arrive as one opaque {@code properties} blob out of {@code application.yml}, and
+     * {@code group.protocol} arrives with them. That is the path the library has to cope with —
+     * including stripping the classic-only settings sitting in the same blob — so it is the path
+     * the tests exercise. Flip {@code groupProtocol} in the yml to run the suite under the other
+     * protocol.
+     */
     static Properties consumerProperties() {
         final Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "100");
-        props.put(ConsumerConfig.METADATA_MAX_AGE_CONFIG, "2000");
+        props.putAll(YML_PROPERTIES);
+        if (isServerSideProtocol()) {
+            // Exactly what a yml line does. Everything else — dropping session.timeout.ms and
+            // friends — is the library's job, not the caller's.
+            props.setProperty("group.protocol", "consumer");
+        }
         return props;
+    }
+
+    /** The protocol the current run is configured for, for logging and reports. */
+    static String groupProtocol() {
+        return YML_GROUP_PROTOCOL;
+    }
+
+    static boolean isServerSideProtocol() {
+        return "consumer".equalsIgnoreCase(YML_GROUP_PROTOCOL);
+    }
+
+    private static final String E2E_CONFIG = "/e2e-kafka.yml";
+    private static final Properties YML_PROPERTIES = new Properties();
+    private static final String YML_GROUP_PROTOCOL = loadE2eConfig();
+
+    /**
+     * A deliberately tiny reader for exactly {@code e2e-kafka.yml}'s shape — a scalar
+     * {@code groupProtocol} plus a {@code properties: |-} block — rather than pulling a YAML
+     * parser onto the test classpath for two keys.
+     */
+    private static String loadE2eConfig() {
+        String protocol = "classic";
+        try (java.io.InputStream in = E2eSupport.class.getResourceAsStream(E2E_CONFIG)) {
+            if (in == null) {
+                throw new IllegalStateException(E2E_CONFIG + " is missing from the test resources");
+            }
+            boolean inPropertiesBlock = false;
+            for (String rawLine : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
+                final String line = rawLine.strip();
+                if (line.isEmpty() || line.startsWith("#")) {
+                    continue;
+                }
+                if (line.startsWith("groupProtocol:")) {
+                    protocol = line.substring("groupProtocol:".length()).strip();
+                    inPropertiesBlock = false;
+                } else if (line.startsWith("properties:")) {
+                    inPropertiesBlock = true;
+                } else if (inPropertiesBlock) {
+                    final int equals = line.indexOf('=');
+                    if (equals > 0) {
+                        YML_PROPERTIES.setProperty(line.substring(0, equals).strip(),
+                                line.substring(equals + 1).strip());
+                    }
+                }
+            }
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("Could not read " + E2E_CONFIG, e);
+        }
+        LOG.info("E2E consumer configuration loaded from {}: group.protocol={}, {} properties",
+                E2E_CONFIG, protocol, YML_PROPERTIES.size());
+        return protocol;
     }
 
     /** Deserializer that hands the listener a {@link String}. */

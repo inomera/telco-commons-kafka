@@ -501,6 +501,36 @@ class ConsumerPollerTest {
     }
 
     @Test
+    @DisplayName("group.protocol=consumer from configuration strips the settings the client rejects")
+    void groupProtocolFromConfigurationIsNormalised() {
+        // How it reaches the library in production: one properties blob out of application.yml
+        // with group.protocol sitting next to the classic-only settings. Normalising this in the
+        // builder was not enough — a poller built any other way still handed the client a config
+        // it rejects — so it happens here, where properties become a KafkaConsumer.
+        final Properties supplied = new Properties();
+        supplied.setProperty("bootstrap.servers", "127.0.0.1:9092");
+        supplied.setProperty("group.protocol", "consumer");
+        supplied.setProperty("session.timeout.ms", "45000");
+        supplied.setProperty("heartbeat.interval.ms", "3000");
+        supplied.setProperty("partition.assignment.strategy",
+                "org.apache.kafka.clients.consumer.CooperativeStickyAssignor");
+
+        final KafkaConsumerProperties properties = new KafkaConsumerProperties(
+                "test-group", List.of(TOPIC), null, OffsetCommitStrategy.AT_LEAST_ONCE_SINGLE, supplied);
+        final DefaultConsumerPoller poller =
+                new DefaultConsumerPoller(properties, new StringDeserializer(), true);
+
+        final Properties effective = poller.buildConsumerProperties();
+
+        assertEquals("consumer", effective.getProperty("group.protocol"));
+        assertFalse(effective.containsKey("session.timeout.ms"));
+        assertFalse(effective.containsKey("heartbeat.interval.ms"));
+        assertFalse(effective.containsKey("partition.assignment.strategy"));
+        // The caller's own object is left alone; only the copy handed to the client is cleaned.
+        assertTrue(supplied.containsKey("session.timeout.ms"));
+    }
+
+    @Test
     @DisplayName("stop() returns even when the poller was never started")
     void stopIsSafeWithoutStart() {
         final MockConsumer<String, Object> consumer = new MockConsumer<>("earliest");

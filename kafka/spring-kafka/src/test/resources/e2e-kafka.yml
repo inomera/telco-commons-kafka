@@ -1,0 +1,24 @@
+# Consumer configuration for the end-to-end tests.
+#
+# Shaped like the `kafka-consumers.<name>.properties` block in a real application.yml, because
+# that is how these settings actually reach the library: as one opaque properties blob, not as
+# builder calls. In particular `group.protocol` is set here rather than through
+# serverSideRebalance(), which is the path production uses and the one that used to be unhandled.
+#
+# Flip `group.protocol` to run the whole failure-mode suite under the other protocol:
+#   consumer -> KIP-848, broker-side assignment, incremental reconciliation, STALE_MEMBER_EPOCH
+#   classic  -> client-side assignor, eager or cooperative depending on the strategy
+#
+# The classic-only settings below are left in deliberately. Under group.protocol=consumer the
+# client rejects them with a ConfigException, so leaving them here proves the library strips them
+# instead of letting the consumer fail to construct.
+groupProtocol: classic
+
+properties: |-
+  bootstrap.servers=127.0.0.1:10000,127.0.0.1:20000,127.0.0.1:30000
+  enable.auto.commit=false
+  auto.offset.reset=earliest
+  max.poll.records=100
+  metadata.max.age.ms=2000
+  session.timeout.ms=45000
+  heartbeat.interval.ms=3000

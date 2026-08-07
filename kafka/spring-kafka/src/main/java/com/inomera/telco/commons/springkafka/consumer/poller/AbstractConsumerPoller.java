@@ -3,6 +3,7 @@ package com.inomera.telco.commons.springkafka.consumer.poller;
 import com.inomera.telco.commons.lang.PropertyUtils;
 import com.inomera.telco.commons.lang.thread.FutureUtils;
 import com.inomera.telco.commons.lang.thread.IncrementalNamingThreadFactory;
+import com.inomera.telco.commons.springkafka.consumer.GroupProtocol;
 import com.inomera.telco.commons.springkafka.consumer.KafkaConsumerProperties;
 import com.inomera.telco.commons.springkafka.util.InterruptUtils;
 import org.apache.kafka.clients.consumer.CommitFailedException;
@@ -71,6 +72,7 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
     private static final long MAX_POLL_WAIT_MS = 3_000L;
     private static final long STOP_TIMEOUT_SECONDS = 30L;
     private static final long REFUSED_COMMIT_BACKOFF_STEP_MS = 50L;
+    private static final long FAILED_POLL_BACKOFF_STEP_MS = 100L;
 
     /** A unit of work to run against the consumer on the poller thread. */
     @FunctionalInterface
@@ -107,6 +109,7 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
     private CountDownLatch terminationLatch;
     private boolean commitInFlight;
     private int consecutiveRefusedCommits;
+    private int consecutiveFailedPolls;
 
     protected AbstractConsumerPoller(KafkaConsumerProperties kafkaConsumerProperties,
                                      Deserializer<?> valueDeserializer,
@@ -168,6 +171,7 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
         commands.clear();
         commitInFlight = false;
         consecutiveRefusedCommits = 0;
+        consecutiveFailedPolls = 0;
 
         this.consumer = createConsumer();
         this.terminationLatch = new CountDownLatch(1);
@@ -237,11 +241,28 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
                 final ConsumerRecords<String, ?> records;
                 try {
                     records = consumer.poll(Duration.ofMillis(pollWaitMs));
+                    consecutiveFailedPolls = 0;
                 } catch (WakeupException e) {
                     // wakeup() is how other threads hand us work; it is only fatal while stopping.
                     if (!running.get()) {
                         break;
                     }
+                    continue;
+                } catch (Exception e) {
+                    // poll() throwing must not end the consumer. Under the classic protocol it
+                    // simply returns empty while the cluster is unreachable, but under
+                    // group.protocol=consumer it surfaces the failure — a TimeoutException once it
+                    // cannot reach the coordinator inside default.api.timeout.ms — and that
+                    // unwound the loop, closed the consumer and left the pod running with nothing
+                    // consuming. Recovery is the poll loop's job, so it stays in it.
+                    if (!running.get()) {
+                        break;
+                    }
+                    InterruptUtils.interruptIfInterruptedException(e);
+                    if (Thread.currentThread().isInterrupted()) {
+                        break;
+                    }
+                    backOffAfterFailedPoll(e);
                     continue;
                 }
 
@@ -430,6 +451,25 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
             }
         }
         backOffAfterRefusedCommit();
+    }
+
+    /**
+     * Keeps a cluster that cannot answer {@code poll()} from being hammered, and makes an outage
+     * visible without one log line per attempt.
+     */
+    private void backOffAfterFailedPoll(Exception failure) {
+        final long backoffMillis = Math.min(FAILED_POLL_BACKOFF_STEP_MS * ++consecutiveFailedPolls,
+                MAX_POLL_WAIT_MS);
+        if (consecutiveFailedPolls == 1 || consecutiveFailedPolls % 20 == 0) {
+            LOG.warn("poll() failed {} time(s) in a row for {}: {}. Staying in the loop and retrying "
+                            + "in {}ms.", consecutiveFailedPolls, kafkaConsumerProperties.getGroupId(),
+                    failure.getMessage(), backoffMillis, failure);
+        }
+        try {
+            Thread.sleep(backoffMillis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**
@@ -741,7 +781,15 @@ public abstract class AbstractConsumerPoller<R> implements ConsumerPoller, Runna
             props.put(ConsumerConfig.METADATA_MAX_AGE_CONFIG, "30000");
         }
         props.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, kafkaConsumerProperties.getClientId());
-        return PropertyUtils.overrideWithSystemArguments(props);
+        final Properties effective = PropertyUtils.overrideWithSystemArguments(props);
+        // The one place every entry point funnels through on its way to a KafkaConsumer, which is
+        // why the group-protocol clean-up belongs here rather than in the builders:
+        // group.protocol=consumer usually arrives in the properties from application.yml, and a
+        // poller constructed directly — or through any future builder — would otherwise hand the
+        // client a consumer-protocol config with session.timeout.ms still in it and die on
+        // construction with a ConfigException.
+        GroupProtocol.normalizeIfServerSide(effective);
+        return effective;
     }
 
     private void shutdownExecutorIfNotNull() {
