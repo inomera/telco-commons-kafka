@@ -15,6 +15,8 @@ public class DefaultBulkRecordRetryer implements BulkRecordRetryer {
     private static final Logger LOG = LoggerFactory.getLogger(DefaultBulkRecordRetryer.class);
 
     private final InMemoryBulkRecordRetryConsumer inMemoryBulkRetryConsumer;
+    /** See {@link DefaultRecordRetryer}. */
+    private final boolean deferCommitUntilRetryResolves;
 
     public DefaultBulkRecordRetryer() {
         this(null);
@@ -22,6 +24,8 @@ public class DefaultBulkRecordRetryer implements BulkRecordRetryer {
 
     public DefaultBulkRecordRetryer(InMemoryBulkRecordRetryConsumer inMemoryBulkRetryConsumer) {
         this.inMemoryBulkRetryConsumer = inMemoryBulkRetryConsumer;
+        this.deferCommitUntilRetryResolves =
+                inMemoryBulkRetryConsumer != null && inMemoryBulkRetryConsumer.reportsRetryOutcome();
     }
 
     @Override
@@ -53,7 +57,9 @@ public class DefaultBulkRecordRetryer implements BulkRecordRetryer {
                 final RetryPolicy policy = RetryPolicy.fromListener(
                         kafkaListener.retryCount(), kafkaListener.retryBackoffTime());
                 if (inMemoryBulkRetryConsumer.offer(result, policy)) {
-                    yield true;
+                    // See DefaultRecordRetryer: hold the offsets until the retry resolves so a
+                    // crash mid-retry cannot lose the batch.
+                    yield !deferCommitUntilRetryResolves;
                 }
                 LOG.warn("In-memory retry refused for a batch of {} records; holding the offsets back.", batchSize);
                 yield false;

@@ -66,6 +66,9 @@ public class DefaultConsumerPoller extends AbstractConsumerPoller<InvokerResult>
 
             try {
                 track(partition, consumerRecordHandler.handle(rec));
+                // Committed and dispatched: if a later record in this batch makes us abandon the
+                // cycle, the rewind must stop here so this one is not handed over a second time.
+                advanceRewindTarget(partition, rec.offset() + 1);
                 if (isAutoPartitionPause()) {
                     toPause.add(partition);
                 }
@@ -80,6 +83,13 @@ public class DefaultConsumerPoller extends AbstractConsumerPoller<InvokerResult>
     @Override
     protected long highestOffset(InvokerResult result) {
         return result.getRecord().offset();
+    }
+
+    @Override
+    protected boolean isCommittable(InvokerResult result) {
+        // The invoker reports failure by handing back the listener annotation; null means the
+        // listener returned normally.
+        return result.getKafkaListener() == null;
     }
 
     @Override

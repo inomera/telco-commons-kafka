@@ -5,11 +5,13 @@ import com.inomera.telco.commons.springkafka.consumer.invoker.ListenerMethodRegi
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.admin.OffsetSpec;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -23,8 +25,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -67,10 +71,22 @@ final class E2eSupport {
     // ----------------------------------------------------------------- admin
 
     static void createTopic(String topic, int partitions) {
+        createTopic(topic, partitions, (short) 1);
+    }
+
+    /**
+     * Creates a topic with an explicit replication factor.
+     *
+     * <p>The default of 1 is fine for tests that only need a place to put records, but it makes
+     * a topic unsurvivable: stopping a broker takes every partition it leads offline, so the
+     * producer cannot write to them and the consumer cannot read them. Any test that stops a
+     * broker and still expects traffic to flow has to replicate.
+     */
+    static void createTopic(String topic, int partitions, short replicationFactor) {
         final Properties props = new Properties();
         props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
         try (Admin admin = Admin.create(props)) {
-            admin.createTopics(List.of(new NewTopic(topic, partitions, (short) 1))).all().get();
+            admin.createTopics(List.of(new NewTopic(topic, partitions, replicationFactor))).all().get();
         } catch (ExecutionException e) {
             if (!(e.getCause() instanceof TopicExistsException)) {
                 throw new IllegalStateException("Could not create topic " + topic, e);
@@ -121,15 +137,76 @@ final class E2eSupport {
 
     // -------------------------------------------------------------- consumer
 
-    /** Consumer properties tuned for fast, deterministic tests. */
+     /**
+     * Consumer properties for the tests, read from {@code e2e-kafka.yml}.
+     *
+     * <p>Loaded from a file rather than built in code on purpose: in a real deployment these
+     * settings arrive as one opaque {@code properties} blob out of {@code application.yml}, and
+     * {@code group.protocol} arrives with them. That is the path the library has to cope with —
+     * including stripping the classic-only settings sitting in the same blob — so it is the path
+     * the tests exercise. Flip {@code groupProtocol} in the yml to run the suite under the other
+     * protocol.
+     */
     static Properties consumerProperties() {
         final Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "100");
-        props.put(ConsumerConfig.METADATA_MAX_AGE_CONFIG, "2000");
+        props.putAll(YML_PROPERTIES);
+        if (isServerSideProtocol()) {
+            // Exactly what a yml line does. Everything else — dropping session.timeout.ms and
+            // friends — is the library's job, not the caller's.
+            props.setProperty("group.protocol", "consumer");
+        }
         return props;
+    }
+
+    /** The protocol the current run is configured for, for logging and reports. */
+    static String groupProtocol() {
+        return YML_GROUP_PROTOCOL;
+    }
+
+    static boolean isServerSideProtocol() {
+        return "consumer".equalsIgnoreCase(YML_GROUP_PROTOCOL);
+    }
+
+    private static final String E2E_CONFIG = "/e2e-kafka.yml";
+    private static final Properties YML_PROPERTIES = new Properties();
+    private static final String YML_GROUP_PROTOCOL = loadE2eConfig();
+
+    /**
+     * A deliberately tiny reader for exactly {@code e2e-kafka.yml}'s shape — a scalar
+     * {@code groupProtocol} plus a {@code properties: |-} block — rather than pulling a YAML
+     * parser onto the test classpath for two keys.
+     */
+    private static String loadE2eConfig() {
+        String protocol = "classic";
+        try (java.io.InputStream in = E2eSupport.class.getResourceAsStream(E2E_CONFIG)) {
+            if (in == null) {
+                throw new IllegalStateException(E2E_CONFIG + " is missing from the test resources");
+            }
+            boolean inPropertiesBlock = false;
+            for (String rawLine : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
+                final String line = rawLine.strip();
+                if (line.isEmpty() || line.startsWith("#")) {
+                    continue;
+                }
+                if (line.startsWith("groupProtocol:")) {
+                    protocol = line.substring("groupProtocol:".length()).strip();
+                    inPropertiesBlock = false;
+                } else if (line.startsWith("properties:")) {
+                    inPropertiesBlock = true;
+                } else if (inPropertiesBlock) {
+                    final int equals = line.indexOf('=');
+                    if (equals > 0) {
+                        YML_PROPERTIES.setProperty(line.substring(0, equals).strip(),
+                                line.substring(equals + 1).strip());
+                    }
+                }
+            }
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("Could not read " + E2E_CONFIG, e);
+        }
+        LOG.info("E2E consumer configuration loaded from {}: group.protocol={}, {} properties",
+                E2E_CONFIG, protocol, YML_PROPERTIES.size());
+        return protocol;
     }
 
     /** Deserializer that hands the listener a {@link String}. */
@@ -176,6 +253,107 @@ final class E2eSupport {
             registry.addListenerMethod(groupId, topic, messageType, new ListenerMethod(bean, method));
         } catch (NoSuchMethodException e) {
             throw new IllegalStateException("No listener method " + methodName, e);
+        }
+    }
+
+    // ----------------------------------------------------------- group state
+
+    /** Committed offset for a partition, or {@code -1} when the group has never committed. */
+    static long committedOffset(String groupId, TopicPartition partition) {
+        final Properties props = new Properties();
+        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
+        try (Admin admin = Admin.create(props)) {
+            final OffsetAndMetadata offset = admin.listConsumerGroupOffsets(groupId)
+                    .partitionsToOffsetAndMetadata().get().get(partition);
+            return offset == null ? -1L : offset.offset();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not read committed offsets for " + groupId, e);
+        }
+    }
+
+    /** Log-end offset, i.e. the offset the next produced record will get. */
+    static long endOffset(TopicPartition partition) {
+        final Properties props = new Properties();
+        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
+        try (Admin admin = Admin.create(props)) {
+            return admin.listOffsets(Map.of(partition, OffsetSpec.latest()))
+                    .partitionResult(partition).get().offset();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not read end offset for " + partition, e);
+        }
+    }
+
+    // ----------------------------------------------------------- chaos hooks
+
+    /** Container names from the compose file, in the order they are declared. */
+    static final List<String> BROKER_CONTAINERS = List.of("broker", "broker-2", "broker-3");
+    static final List<Integer> BROKER_PORTS = List.of(10000, 20000, 30000);
+
+    static void dockerStop(String container) {
+        docker("stop", container);
+    }
+
+    static void dockerStart(String container) {
+        docker("start", container);
+    }
+
+    private static void docker(String command, String container) {
+        try {
+            final Process process = new ProcessBuilder("docker", command, container)
+                    .redirectErrorStream(true)
+                    .start();
+            if (!process.waitFor(90, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                throw new IllegalStateException("docker " + command + " " + container + " timed out");
+            }
+            final String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            if (process.exitValue() != 0) {
+                throw new IllegalStateException("docker " + command + " " + container + " failed: " + output);
+            }
+            LOG.info("docker {} {} -> {}", command, container, output);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("Could not run docker " + command, e);
+        }
+    }
+
+    static boolean portOpen(int port) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress("127.0.0.1", port), 500);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    static void awaitPort(int port, boolean expectedOpen, Duration timeout) {
+        await("port " + port + (expectedOpen ? " to open" : " to close"), timeout,
+                () -> portOpen(port) == expectedOpen);
+    }
+
+    /** Restores every broker and waits for its external listener, whatever a test did to them. */
+    static void restoreCluster() {
+        for (String container : BROKER_CONTAINERS) {
+            try {
+                dockerStart(container);
+            } catch (Exception e) {
+                LOG.warn("Could not restart {}: {}", container, e.getMessage());
+            }
+        }
+        for (int port : BROKER_PORTS) {
+            try {
+                awaitPort(port, true, Duration.ofSeconds(90));
+            } catch (AssertionError e) {
+                LOG.warn("Broker port {} did not come back: {}", port, e.getMessage());
+            }
         }
     }
 

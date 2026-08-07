@@ -61,7 +61,35 @@ public final class GroupProtocol {
         if (remoteAssignor != null && !remoteAssignor.isBlank()) {
             properties.setProperty(GROUP_REMOTE_ASSIGNOR_CONFIG, remoteAssignor);
         }
+        dropClassicOnlySettings(properties);
+        LOG.info("Broker-side rebalancing enabled (group.protocol=consumer, group.remote.assignor={})",
+                properties.getProperty(GROUP_REMOTE_ASSIGNOR_CONFIG, "<broker default>"));
+    }
 
+    /**
+     * Applies the same clean-up as {@link #enable} when the properties <em>already</em> ask for the
+     * consumer protocol.
+     *
+     * <p>{@code group.protocol} is far more often set in {@code application.yml} than through
+     * {@link #enable}, and that path used to get no help at all: the setting was handed straight to
+     * the client while {@code session.timeout.ms} and friends stayed in the same property block, so
+     * the consumer died at construction with a {@code ConfigException} and the application never
+     * started. Whether the protocol was chosen in code or in configuration, the incompatible
+     * settings have to go.
+     *
+     * @return {@code true} when the properties asked for the consumer protocol
+     */
+    public static boolean normalizeIfServerSide(Properties properties) {
+        if (!isServerSide(properties)) {
+            return false;
+        }
+        LOG.info("group.protocol=consumer found in the supplied configuration; "
+                + "applying broker-side rebalancing rules.");
+        dropClassicOnlySettings(properties);
+        return true;
+    }
+
+    private static void dropClassicOnlySettings(Properties properties) {
         final List<String> dropped = CLASSIC_ONLY_SETTINGS.stream()
                 .filter(properties::containsKey)
                 .toList();
@@ -71,8 +99,6 @@ public final class GroupProtocol {
             LOG.warn("group.protocol=consumer delegates rebalancing to the broker, which rejects {}. "
                             + "Removed them; the broker's own timeouts apply instead.", dropped);
         }
-        LOG.info("Broker-side rebalancing enabled (group.protocol=consumer, group.remote.assignor={})",
-                properties.getProperty(GROUP_REMOTE_ASSIGNOR_CONFIG, "<broker default>"));
     }
 
     /** Whether the properties already ask for the KIP-848 protocol. */

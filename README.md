@@ -38,7 +38,7 @@ Compatability Matrix
 JDK 25 Support (gradle 9.x)
 
 ```groovy
-implementation 'com.inomera.telco.commons:spring-kafka:4.1.3'
+implementation 'com.inomera.telco.commons:spring-kafka:4.1.5'
 implementation 'com.inomera.telco.commons:kafka-json:4.1.0'
 implementation 'com.inomera.telco.commons:kafka-kryo:4.1.0'
 implementation 'com.inomera.telco.commons:kafka-protobuf:4.1.0'
@@ -573,7 +573,9 @@ RETRY retry() default RETRY.NONE;
 /*
 NONE : no retry.
 RETRY_FROM_BROKER : do not ack/commit message to broker! re-start consumer, consumer polls message from broker again.
-RETRY_IN_MEMORY_TASK : commit/ack message to broker, retry in consumer local queue. default retryCount val is 3.
+RETRY_IN_MEMORY_TASK : retry in the consumer's local queue. The offset is held back until the retry
+resolves (success or dead-letter), so a restart mid-retry re-delivers the record instead of losing it.
+default retryCount val is 3.
  */
 enum RETRY {
 NONE,

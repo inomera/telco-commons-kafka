@@ -42,6 +42,7 @@ public class DefaultInMemoryBulkRecordRetryConsumer implements InMemoryBulkRecor
     private final Semaphore capacity;
 
     private ExecutorService executorService;
+    private volatile RetryOutcomeListener retryOutcomeListener = RetryOutcomeListener.NO_OP;
 
     public DefaultInMemoryBulkRecordRetryConsumer(BulkConsumerRecordHandler bulkConsumerRecordHandler) {
         this(bulkConsumerRecordHandler, RetryPolicy.defaults(), new LoggingDeadLetterHandler());
@@ -54,6 +55,16 @@ public class DefaultInMemoryBulkRecordRetryConsumer implements InMemoryBulkRecor
         this.defaultPolicy = defaultPolicy;
         this.deadLetterHandler = deadLetterHandler;
         this.capacity = new Semaphore(defaultPolicy.capacity());
+    }
+
+    @Override
+    public void setRetryOutcomeListener(RetryOutcomeListener listener) {
+        this.retryOutcomeListener = listener == null ? RetryOutcomeListener.NO_OP : listener;
+    }
+
+    @Override
+    public boolean reportsRetryOutcome() {
+        return true;
     }
 
     @Override
@@ -134,12 +145,14 @@ public class DefaultInMemoryBulkRecordRetryConsumer implements InMemoryBulkRecor
 
         if (failedAgain) {
             reschedule(retryContext, attempt);
+            return;
         }
+        resolve(records);
     }
 
     private void reschedule(BulkRetryContext context, int attempt) {
         if (attempt >= context.getMaxCount()) {
-            deadLetterHandler.onExhausted(context.getRetry().getRecords(), attempt);
+            deadLetter(context, attempt);
             return;
         }
         final int next = attempt + 1;
@@ -148,10 +161,39 @@ public class DefaultInMemoryBulkRecordRetryConsumer implements InMemoryBulkRecor
         if (capacity.tryAcquire()) {
             if (!retryQueue.offer(context)) {
                 capacity.release();
-                deadLetterHandler.onExhausted(context.getRetry().getRecords(), attempt);
+                deadLetter(context, attempt);
             }
         } else {
-            deadLetterHandler.onExhausted(context.getRetry().getRecords(), attempt);
+            deadLetter(context, attempt);
+        }
+    }
+
+    private void deadLetter(BulkRetryContext context, int attempt) {
+        final Set<ConsumerRecord<String, ?>> records = context.getRetry().getRecords();
+        deadLetterHandler.onExhausted(records, attempt);
+        resolve(records);
+    }
+
+    /**
+     * Unpins the batch's partition. The poller pinned it at the batch's <em>highest</em> offset,
+     * which is also what it would have committed, so that is the offset to release.
+     */
+    private void resolve(Set<ConsumerRecord<String, ?>> records) {
+        ConsumerRecord<String, ?> highest = null;
+        for (ConsumerRecord<String, ?> record : records) {
+            if (highest == null || record.offset() > highest.offset()) {
+                highest = record;
+            }
+        }
+        if (highest == null) {
+            return;
+        }
+        try {
+            retryOutcomeListener.onRetryResolved(highest);
+        } catch (Exception e) {
+            LOG.error("Retry outcome listener failed for a batch ending at {}-{}@{}: {}",
+                    highest.topic(), highest.partition(), highest.offset(), e.getMessage(), e);
+            InterruptUtils.interruptIfInterruptedException(e);
         }
     }
 
